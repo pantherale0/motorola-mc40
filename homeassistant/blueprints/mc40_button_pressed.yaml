@@ -1,0 +1,18 @@
+blueprint:
+  name: MC40 button pressed
+  description: >
+    Fires when the MC40 PTT key (the button above the side scan trigger) is pressed.
+    event_data.button is ptt (or headset for the headset hook).
+  domain: automation
+  source_url: https://github.com/pantherale0/motorola-mc40
+  input:
+    press_action:
+      name: Action on press
+      selector:
+        action:
+
+trigger:
+  - platform: event
+    event_type: mc40_button_pressed
+
+action: !input press_action

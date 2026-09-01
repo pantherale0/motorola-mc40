@@ -1,0 +1,13 @@
+---
+description: Android API 22 / MC40N0 constraints for this companion app
+globs: app/**/*.{kt,xml,gradle}
+alwaysApply: false
+---
+
+# MC40 Android
+
+- Keep `minSdk 22` and `targetSdk 22`. Permissions are install-time.
+- Java 8 language level. No Compose, no coroutines that need newer desugaring than `coreLibraryDesugaring`.
+- Enable TLS 1.2 on OkHttp for API 22. Do not bump OkHttp to 5.x.
+- Layouts must remain readable at 480×800. Prefer LinearLayout / ScrollView over ConstraintLayout chains.
+- Persist HA URL, token, and webhook credentials in SharedPreferences (private mode). Never log the access token.

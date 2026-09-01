@@ -1,0 +1,44 @@
+# Example: after a Use-mode scan, send a product overlay to the MC40.
+# Replace the notify target and Grocy lookup with your own.
+# Shopping-mode scans already fire mc40_shopping_add from the device.
+
+automation:
+  - alias: MC40 use overlay
+    trigger:
+      - platform: event
+        event_type: mc40_barcode_scanned
+    condition:
+      - condition: template
+        value_template: "{{ trigger.event.data.mode == 'use' }}"
+    action:
+      - action: notify.mobile_app_mc40n0
+        data:
+          message: overlay
+          data:
+            command: overlay
+            measure: count
+            name: "{{ trigger.event.data.barcode }}"
+            barcode: "{{ trigger.event.data.barcode }}"
+            unit: pcs
+            quantity: 1
+            step: 1
+
+  - alias: MC40 stock adjust
+    trigger:
+      - platform: event
+        event_type: mc40_stock_adjust
+    action:
+      - action: persistent_notification.create
+        data:
+          title: "MC40 used {{ trigger.event.data.name }}"
+          message: "{{ trigger.event.data.quantity }} {{ trigger.event.data.unit }}"
+
+  - alias: MC40 shopping add
+    trigger:
+      - platform: event
+        event_type: mc40_shopping_add
+    action:
+      - action: persistent_notification.create
+        data:
+          title: "MC40 shopping {{ trigger.event.data.barcode }}"
+          message: "{{ trigger.event.data.quantity }} {{ trigger.event.data.unit }}"

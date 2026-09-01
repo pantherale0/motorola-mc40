@@ -1,0 +1,29 @@
+<resources>
+    <string name="app_name">MC40 Companion</string>
+    <string name="setup_title">Connect to Home Assistant</string>
+    <string name="hint_url">http://homeassistant.local:8123</string>
+    <string name="hint_token">Long-lived access token</string>
+    <string name="hint_token_saved">Saved on device — leave blank to keep</string>
+    <string name="label_url">Home Assistant URL</string>
+    <string name="label_token">Access token</string>
+    <string name="btn_scan_qr">Scan token QR</string>
+    <string name="btn_connect">Connect</string>
+    <string name="btn_scan">Scan</string>
+    <string name="btn_reconnect">Change server</string>
+    <string name="status_disconnected">Not connected</string>
+    <string name="status_connecting">Connecting…</string>
+    <string name="status_connected">Connected</string>
+    <string name="last_barcode_placeholder">Waiting for scan</string>
+    <string name="notif_title">MC40 Companion</string>
+    <string name="notif_text">Connected to Home Assistant</string>
+    <string name="scanner_ready">Scanner ready</string>
+    <string name="scanner_not_ready">Scanner not configured</string>
+    <string name="mode_use">Use</string>
+    <string name="mode_shopping">Shopping</string>
+    <string name="btn_minus">−</string>
+    <string name="btn_plus">+</string>
+    <string name="btn_confirm">Confirm</string>
+    <string name="btn_dismiss">Dismiss</string>
+    <string name="image_placeholder">No image</string>
+    <string name="qty_format">%1$s %2$s</string>
+</resources>

@@ -1,0 +1,19 @@
+# Gradle
+.gradle/
+**/build/
+local.properties
+
+# Android / IDE
+*.iml
+.idea/
+.DS_Store
+captures/
+*.apk
+*.ap_
+*.aab
+
+# Kotlin
+.kotlin/
+
+# Node (ag-kit CLI cache only; keep .agents)
+node_modules/

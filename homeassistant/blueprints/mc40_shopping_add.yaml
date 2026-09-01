@@ -1,0 +1,18 @@
+blueprint:
+  name: MC40 shopping add
+  description: >
+    Fires when the MC40 is in Shopping mode (immediate scan, or Confirm on a product card).
+    quantity is how many to put on the shopping list.
+  domain: automation
+  source_url: https://github.com/pantherale0/motorola-mc40
+  input:
+    add_action:
+      name: Action on add
+      selector:
+        action:
+
+trigger:
+  - platform: event
+    event_type: mc40_shopping_add
+
+action: !input add_action

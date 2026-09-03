@@ -11,6 +11,10 @@ captures/
 *.apk
 *.ap_
 *.aab
+*.jks
+*.keystore
+*.p12
+keystore/
 
 # Kotlin
 .kotlin/

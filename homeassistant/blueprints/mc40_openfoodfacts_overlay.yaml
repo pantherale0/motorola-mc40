@@ -1,0 +1,167 @@
+blueprint:
+  name: MC40 Open Food Facts overlay
+  description: >
+    On an MC40 barcode scan, look up the product with the Open Food Facts
+    integration (open_food_facts.get_product) and show it on the device
+    overlay (name, front image, quantity, optional TTS).
+
+    Requires https://github.com/pantherale0/ha-openfoodfacts. Unknown or
+    failed lookups still open the overlay with the raw barcode and error
+    feedback so Confirm can fire mc40_stock_adjust / mc40_shopping_add.
+
+    Shopping-mode scans already send mc40_shopping_add immediately; leave
+    that mode unchecked unless you want a quantity card as well.
+  domain: automation
+  source_url: https://github.com/pantherale0/motorola-mc40
+  author: pantherale0
+  homeassistant:
+    min_version: 2024.6.0
+  input:
+    notify_device:
+      name: MC40 device
+      description: The mobile_app device that should show the product overlay.
+      selector:
+        device:
+          filter:
+            - integration: mobile_app
+    scan_modes:
+      name: Scanner modes
+      description: Only look up scans from these MC40 modes.
+      default:
+        - use
+      selector:
+        select:
+          multiple: true
+          options:
+            - label: Use
+              value: use
+            - label: Shopping
+              value: shopping
+    announce:
+      name: Speak product name
+      description: Include tts_text on the overlay so Pico TTS announces the product.
+      default: true
+      selector:
+        boolean:
+    overlay_timeout:
+      name: Overlay timeout
+      description: Seconds until the card auto-dismisses. 0 keeps it open until Confirm or Dismiss.
+      default: 30
+      selector:
+        number:
+          min: 0
+          max: 120
+          unit_of_measurement: seconds
+          mode: box
+    measure:
+      name: Quantity measure
+      default: count
+      selector:
+        select:
+          options:
+            - label: Count
+              value: count
+            - label: Weight
+              value: weight
+    unit:
+      name: Quantity unit
+      default: pcs
+      selector:
+        text:
+    default_quantity:
+      name: Starting quantity
+      default: 1
+      selector:
+        number:
+          min: 0
+          step: 0.01
+          mode: box
+    step:
+      name: Quantity step
+      default: 1
+      selector:
+        number:
+          min: 0.01
+          step: 0.01
+          mode: box
+
+variables:
+  scan_modes: !input scan_modes
+  announce: !input announce
+  overlay_timeout: !input overlay_timeout
+  overlay_measure: !input measure
+  overlay_unit: !input unit
+  overlay_quantity: !input default_quantity
+  overlay_step: !input step
+
+trigger:
+  - platform: event
+    event_type: mc40_barcode_scanned
+
+condition:
+  - condition: template
+    value_template: "{{ trigger.event.data.mode in scan_modes }}"
+
+action:
+  - action: open_food_facts.get_product
+    continue_on_error: true
+    data:
+      barcode: "{{ trigger.event.data.barcode }}"
+      fields:
+        - product_name
+        - product_name_en
+        - generic_name
+        - brands
+        - image_front_small_url
+        - image_small_url
+        - image_front_url
+        - image_url
+        - image_thumb_url
+    response_variable: off_result
+  - variables:
+      found: "{{ off_result is defined and off_result.product is mapping }}"
+      product_name: >-
+        {%- if off_result is defined and off_result.product is mapping -%}
+          {%- set p = off_result.product -%}
+          {%- set name = p.product_name or p.product_name_en or p.generic_name or '' -%}
+          {%- set brand = (p.brands or '').split(',') | first | trim -%}
+          {%- if name and brand and brand | lower not in name | lower -%}
+            {{- brand }} {{ name -}}
+          {%- else -%}
+            {{- name or brand or trigger.event.data.barcode -}}
+          {%- endif -%}
+        {%- else -%}
+          {{- trigger.event.data.barcode -}}
+        {%- endif -%}
+      image_url: >-
+        {%- if off_result is defined and off_result.product is mapping -%}
+          {{- off_result.product.image_front_small_url
+              or off_result.product.image_small_url
+              or off_result.product.image_thumb_url
+              or off_result.product.image_front_url
+              or off_result.product.image_url
+              or '' -}}
+        {%- endif -%}
+  - variables:
+      tts_text: "{{ product_name if announce and found else ('Unknown product' if announce else '') }}"
+  - device_id: !input notify_device
+    domain: mobile_app
+    type: notify
+    message: overlay
+    data:
+      command: overlay
+      name: "{{ product_name }}"
+      barcode: "{{ trigger.event.data.barcode }}"
+      image_url: "{{ image_url }}"
+      measure: "{{ overlay_measure }}"
+      unit: "{{ overlay_unit }}"
+      quantity: "{{ overlay_quantity }}"
+      step: "{{ overlay_step }}"
+      timeout: "{{ overlay_timeout }}"
+      tts_text: "{{ tts_text }}"
+      beep: "{{ 'ok' if found else 'error' }}"
+      led: "{{ 'green' if found else 'red' }}"
+      led_duration: 2
+
+mode: queued
+max: 5

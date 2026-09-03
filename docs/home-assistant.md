@@ -198,15 +198,17 @@ Stop speech: `command: tts_stop` (aliases `stop_tts`, `silence`).
 
 Copy [`homeassistant/blueprints/`](../homeassistant/blueprints/) into HA `config/blueprints/automation/`.
 
-Stub YAML: [`homeassistant/examples/overlay_after_scan.yaml`](../homeassistant/examples/overlay_after_scan.yaml).
+**Open Food Facts overlay:** import [`mc40_openfoodfacts_overlay.yaml`](../homeassistant/blueprints/mc40_openfoodfacts_overlay.yaml). Requires [ha-openfoodfacts](https://github.com/pantherale0/ha-openfoodfacts) (`open_food_facts.get_product`). Use-mode scans look up the barcode and send `command: overlay` with the product name, a small front image, and optional TTS. Confirm still fires `mc40_stock_adjust` (map that to Grocy or another pantry). Unknown barcodes open the overlay with the raw code, `beep: error`, and a red LED.
 
-**Use mode:** `mc40_barcode_scanned` (mode=use) → Grocy product lookup → `notify` overlay → `mc40_stock_adjust` → Grocy consume.
+Stub YAML without a lookup: [`homeassistant/examples/overlay_after_scan.yaml`](../homeassistant/examples/overlay_after_scan.yaml).
+
+**Use mode:** `mc40_barcode_scanned` (mode=use) → Open Food Facts (or Grocy) lookup → `notify` overlay → `mc40_stock_adjust` → pantry consume.
 
 **Shopping mode:** device already fires `mc40_shopping_add` on scan. Optionally send an overlay afterward if you want a quantity edit before adding.
 
 **PTT:** `mc40_button_pressed` → whatever you want (cancel overlay, toggle a light, announce).
 
-**Errors:** if Grocy lookup fails, notify `command: feedback` with `beep: error` and `led: red`.
+**Errors:** if lookup fails, notify `command: feedback` with `beep: error` and `led: red` (the Open Food Facts blueprint does this on the overlay notify).
 
 ## Entity naming
 

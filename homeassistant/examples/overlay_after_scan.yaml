@@ -1,5 +1,6 @@
 # Example: after a Use-mode scan, send a product overlay to the MC40.
-# Replace the notify target and Grocy lookup with your own.
+# For a ready-made Open Food Facts lookup, import
+# homeassistant/blueprints/mc40_openfoodfacts_overlay.yaml instead.
 # Shopping-mode scans already fire mc40_shopping_add from the device.
 
 automation:

@@ -40,13 +40,13 @@ adb shell am start -n dev.pantherale0.mc40/.ui.MainActivity
 | [Security](docs/security.md) | Token storage, URL rules, HA user advice |
 | [Architecture](docs/architecture.md) | How scan → HA → overlay hangs together |
 
-Blueprints: [`homeassistant/blueprints/`](homeassistant/blueprints/). Example automations: [`homeassistant/examples/overlay_after_scan.yaml`](homeassistant/examples/overlay_after_scan.yaml). Grocy mapping stays in Home Assistant, not in the APK.
+Blueprints: [`homeassistant/blueprints/`](homeassistant/blueprints/) (including an [Open Food Facts overlay](homeassistant/blueprints/mc40_openfoodfacts_overlay.yaml) that calls [ha-openfoodfacts](https://github.com/pantherale0/ha-openfoodfacts)). Example automations: [`homeassistant/examples/overlay_after_scan.yaml`](homeassistant/examples/overlay_after_scan.yaml). Grocy mapping stays in Home Assistant, not in the APK.
 
 ## Typical grocery flow
 
 ```text
 Scan (Use) → mc40_barcode_scanned
-          → HA looks up Grocy
+          → HA looks up Open Food Facts (or Grocy)
           → notify overlay (name, image, qty)
           → Confirm → mc40_stock_adjust
 ```

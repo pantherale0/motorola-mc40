@@ -4,7 +4,9 @@ import android.app.Notification
 import android.app.PendingIntent
 import android.app.Service
 import android.content.Intent
+import android.os.Handler
 import android.os.IBinder
+import android.os.Looper
 import android.util.Log
 import dev.pantherale0.mc40.Mc40App
 import dev.pantherale0.mc40.R
@@ -29,18 +31,28 @@ import java.util.concurrent.TimeUnit
 
 class CompanionService : Service() {
     private val executor = Executors.newSingleThreadScheduledExecutor()
+    private val main = Handler(Looper.getMainLooper())
     private lateinit var api: HaApi
     private lateinit var sensors: SensorPublisher
     private lateinit var notify: NotifySocket
     private lateinit var feedback: FeedbackPlayer
     private lateinit var tts: TtsPlayer
     private lateinit var proximity: ProximityMonitor
+    private lateinit var idle: IdlePowerController
     private var poll: ScheduledFuture<*>? = null
+
+    private val dropNotify = Runnable {
+        if (!idle.interactive) {
+            notify.disconnect()
+            Log.i(Mc40App.TAG, "Notify socket dropped after idle grace")
+        }
+    }
 
     private val scanListener = ScanBus.Listener { result -> onScan(result) }
     private val buttonListener = ButtonBus.Listener { press ->
         if (!Mc40App.instance.prefs.isRegistered) return@Listener
-        executor.execute {
+        wakeNotifyBriefly()
+        runIo {
             runCatching { sensors.publishButton(press.button, press.keyCode, press.scanCode) }
                 .onFailure { Log.w(Mc40App.TAG, "Button publish failed: ${it.message}") }
         }
@@ -85,34 +97,45 @@ class CompanionService : Service() {
                     .onFailure { Log.w(Mc40App.TAG, "Proximity publish failed: ${it.message}") }
             }
         }
+        idle = IdlePowerController(this, object : IdlePowerController.Listener {
+            override fun onInteractiveChanged(interactive: Boolean) {
+                if (interactive) enterAwake() else enterSleep()
+            }
+        })
         ScanBus.addListener(scanListener)
         ButtonBus.addListener(buttonListener)
         ModeBus.addListener(modeListener)
         OverlayBus.addListener(overlayListener)
-        proximity.start()
         startForeground(NOTIF_ID, notification())
-        executor.execute {
-            DataWedgeManager.switchToProfile(this)
+        idle.start()
+        if (idle.interactive) {
+            proximity.start()
             if (Mc40App.instance.prefs.isRegistered) {
-                runCatching { sensors.publishDevice("service_start") }
-                    .onFailure { Log.w(Mc40App.TAG, "Initial sensor publish failed: ${it.message}") }
                 notify.connect()
             }
+            startAwakePoll()
         }
-        poll = executor.scheduleAtFixedRate({
-            if (Mc40App.instance.prefs.isRegistered) {
-                runCatching { sensors.publishDevice("periodic") }
-                    .onFailure { Log.w(Mc40App.TAG, "Periodic sensors failed: ${it.message}") }
-            }
-        }, 60, 60, TimeUnit.SECONDS)
+        executor.execute { DataWedgeManager.switchToProfile(this) }
+        if (Mc40App.instance.prefs.isRegistered) {
+            publishAsync("service_start")
+        }
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
+        if (intent?.action == IdlePowerController.ACTION_SLEEP_TICK) {
+            publishSleepTick()
+            return START_STICKY
+        }
+        if (Mc40App.instance.prefs.isRegistered && idle.interactive) {
+            notify.ensureConnected()
+        }
         return START_STICKY
     }
 
     override fun onDestroy() {
-        poll?.cancel(true)
+        main.removeCallbacks(dropNotify)
+        stopAwakePoll()
+        idle.stop()
         ScanBus.removeListener(scanListener)
         ButtonBus.removeListener(buttonListener)
         ModeBus.removeListener(modeListener)
@@ -128,10 +151,77 @@ class CompanionService : Service() {
 
     override fun onBind(intent: Intent?): IBinder? = null
 
+    private fun enterSleep() {
+        main.removeCallbacks(dropNotify)
+        proximity.stop()
+        stopAwakePoll()
+        notify.disconnect()
+        publishAsync("sleep")
+    }
+
+    private fun enterAwake() {
+        main.removeCallbacks(dropNotify)
+        proximity.start()
+        startAwakePoll()
+        if (Mc40App.instance.prefs.isRegistered) {
+            notify.connect()
+            publishAsync("screen_on")
+        }
+    }
+
+    private fun wakeNotifyBriefly() {
+        if (!Mc40App.instance.prefs.isRegistered) return
+        notify.connect()
+        main.removeCallbacks(dropNotify)
+        if (!idle.interactive) {
+            main.postDelayed(dropNotify, NOTIFY_GRACE_MS)
+        }
+    }
+
+    private fun publishSleepTick() {
+        if (idle.interactive || !Mc40App.instance.prefs.isRegistered) return
+        publishAsync("sleep")
+    }
+
+    private fun publishAsync(trigger: String) {
+        runIo {
+            runCatching { sensors.publishDevice(trigger) }
+                .onFailure { Log.w(Mc40App.TAG, "Sensor publish failed ($trigger): ${it.message}") }
+        }
+    }
+
+    private fun runIo(block: () -> Unit) {
+        idle.acquireWorkLock()
+        executor.execute {
+            try {
+                block()
+            } finally {
+                idle.releaseWorkLock()
+            }
+        }
+    }
+
+    private fun startAwakePoll() {
+        stopAwakePoll()
+        poll = executor.scheduleAtFixedRate({
+            if (Mc40App.instance.prefs.isRegistered && idle.interactive) {
+                notify.ensureConnected()
+                runCatching { sensors.publishDevice("periodic") }
+                    .onFailure { Log.w(Mc40App.TAG, "Periodic sensors failed: ${it.message}") }
+            }
+        }, AWAKE_POLL_SEC, AWAKE_POLL_SEC, TimeUnit.SECONDS)
+    }
+
+    private fun stopAwakePoll() {
+        poll?.cancel(false)
+        poll = null
+    }
+
     private fun onScan(result: ScanResult) {
         val prefs = Mc40App.instance.prefs
         if (!prefs.isRegistered || prefs.setupScanMode) return
-        executor.execute {
+        wakeNotifyBriefly()
+        runIo {
             runCatching {
                 sensors.publishScan(result)
                 if (prefs.scannerMode == ScannerMode.SHOPPING.wire) {
@@ -160,5 +250,7 @@ class CompanionService : Service() {
 
     companion object {
         private const val NOTIF_ID = 40
+        private const val AWAKE_POLL_SEC = 60L
+        private val NOTIFY_GRACE_MS = TimeUnit.SECONDS.toMillis(45)
     }
 }

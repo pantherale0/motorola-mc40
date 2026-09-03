@@ -20,4 +20,6 @@ Keep `binary_sensor.scanner_ready` in sync with DataWedge profile status.
 
 Notify `data.command` values: `overlay`, `set_mode`, `dismiss`, `feedback`, `beep`, `vibrate`, `led`, `tts`, `tts_stop`. Feedback fields: `beep` (`ok`/`error`/`scan`), `vibrate` (ms), `led` (color name or `off`), `led_duration` (seconds). TTS: `tts_text`, optional `volume` / `stream` / `language`. Uses on-device Pico TTS.
 
+The notify WebSocket is open while the screen is on. `SCREEN_OFF` disconnects it (10-minute diagnostic webhook updates continue). A scan or PTT briefly reconnects so overlay/feedback can arrive.
+
 Sensor `proximity` state is `close` or `far`. `binary_sensor.tts_ready` is true after Pico initializes.

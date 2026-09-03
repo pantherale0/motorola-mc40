@@ -26,7 +26,7 @@ Entities appear on the `mobile_app` device. Unique IDs:
 | `wifi_connection` | sensor | SSID or `not connected` |
 | `wifi_ip_address` | sensor | IPv4 |
 | `wifi_signal_strength` | sensor | dBm |
-| `last_update_trigger` | sensor | e.g. `registration`, `periodic`, `barcode_scan`, `service_start` |
+| `last_update_trigger` | sensor | e.g. `registration`, `periodic`, `screen_on`, `sleep`, `barcode_scan`, `service_start` |
 | `last_reboot` | sensor | ISO-8601 of last boot |
 | `last_barcode` | sensor | Payload; attributes `symbology`, `source`, `scanned_at` |
 | `scanner_ready` | binary_sensor | DataWedge profile applied |
@@ -34,7 +34,7 @@ Entities appear on the `mobile_app` device. Unique IDs:
 | `proximity` | sensor | `close` or `far` (covers the top sensor) |
 | `tts_ready` | binary_sensor | Pico TTS engine initialized |
 
-Diagnostics update about every 60 seconds while the companion service runs. Proximity and mode update on change. Scans update `last_barcode` immediately.
+Diagnostics update about every 60 seconds while the screen is on, and every 10 minutes while it is off (`last_update_trigger` is `sleep`). Proximity and mode update on change. Scans update `last_barcode` immediately.
 
 ## Events the device fires
 
@@ -89,6 +89,8 @@ Hardware **PTT** (above the left scan trigger). Headset hook may arrive as `butt
 ## Notify commands
 
 HA sends `notify.mobile_app_mc40n0`. The app keys off **`data.command`** (the message string can be anything). Notifications with no recognised command show as a Toast.
+
+The companion subscribes to `mobile_app/push_notification_channel` while the screen is on. There is no Firebase fallback. **Screen off closes the socket** so the radio can sleep; HA will then show the device as not connected to local push until the display wakes (or a scan/PTT briefly reopens the channel). Check logcat for `Notify websocket subscribed for local push`.
 
 ```yaml
 action: notify.mobile_app_mc40n0

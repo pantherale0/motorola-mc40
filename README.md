@@ -12,6 +12,7 @@ This device cannot render Lovelace. There is no OAuth, Play Services, or WebView
 - Product overlay from `notify.mobile_app_*` (image, quantity, confirm)
 - Events back to HA: scan, stock adjust, shopping add, PTT press
 - Diagnostic sensors (battery, Wi-Fi, proximity, scanner mode)
+- Drops the notify socket while the screen is off; 10-minute diagnostic updates while idle
 - Beep / vibrate / LED / **TTS** feedback from notify
 - Optional Home launcher, fullscreen (status bar hidden)
 

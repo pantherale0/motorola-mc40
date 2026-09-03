@@ -83,3 +83,5 @@ To restore the stock launcher: Settings → Home, or clear MC40 Companion’s de
 ## Feedback from Home Assistant
 
 Notify can beep, vibrate, light the LED bar, and **speak** (Pico TTS on the speaker). Overlay notifies may include `tts_text` so a lookup can announce the product. See [Home Assistant](home-assistant.md#notify-commands).
+
+The notify WebSocket is open only while the screen is on. With the display off, Home Assistant will show the device as not connected to local push; a scan or PTT briefly reopens it so an overlay can still arrive. Diagnostic sensors keep posting about every 10 minutes while idle.

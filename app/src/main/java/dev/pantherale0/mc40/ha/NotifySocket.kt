@@ -17,13 +17,18 @@ import okhttp3.WebSocket
 import okhttp3.WebSocketListener
 import java.util.concurrent.TimeUnit
 
-class NotifySocket(private val prefs: AppPrefs) {
+class NotifySocket(
+    private val prefs: AppPrefs,
+    private val onSubscriptionChanged: (Boolean) -> Unit = {}
+) {
     private val main = Handler(Looper.getMainLooper())
     @Volatile private var socket: WebSocket? = null
     private var nextId = 2
     @Volatile private var generation = 0
     @Volatile private var wanted = false
-    @Volatile private var subscribed = false
+    @Volatile
+    var isSubscribed = false
+        private set
     private var backoffMs = MIN_BACKOFF_MS
     private val reconnect = Runnable {
         if (wanted && prefs.isRegistered) open()
@@ -44,7 +49,7 @@ class NotifySocket(private val prefs: AppPrefs) {
     @Synchronized
     fun disconnect() {
         wanted = false
-        subscribed = false
+        updateSubscription(false)
         generation++
         main.removeCallbacks(reconnect)
         closeSocket()
@@ -56,7 +61,7 @@ class NotifySocket(private val prefs: AppPrefs) {
         generation++
         val gen = generation
         closeSocket()
-        subscribed = false
+        updateSubscription(false)
         nextId = 2
         val wsUrl = prefs.instanceUrl
             .replace("https://", "wss://")
@@ -73,7 +78,7 @@ class NotifySocket(private val prefs: AppPrefs) {
 
     private fun scheduleReconnect(reason: String) {
         if (!wanted || !prefs.isRegistered) return
-        subscribed = false
+        updateSubscription(false)
         Log.w(Mc40App.TAG, "Notify websocket $reason; retry in ${backoffMs}ms")
         main.removeCallbacks(reconnect)
         main.postDelayed(reconnect, backoffMs)
@@ -138,11 +143,11 @@ class NotifySocket(private val prefs: AppPrefs) {
         val success = json.get("success")?.asBoolean == true
         if (id == 1) {
             if (success) {
-                subscribed = true
+                updateSubscription(true)
                 backoffMs = MIN_BACKOFF_MS
                 Log.i(Mc40App.TAG, "Notify websocket subscribed for local push")
             } else {
-                subscribed = false
+                updateSubscription(false)
                 Log.w(Mc40App.TAG, "Notify websocket subscribe failed: ${text.take(240)}")
                 scheduleReconnect("subscribe failed")
             }
@@ -151,6 +156,12 @@ class NotifySocket(private val prefs: AppPrefs) {
         if (!success) {
             Log.w(Mc40App.TAG, "WS result error: ${text.take(200)}")
         }
+    }
+
+    private fun updateSubscription(subscribed: Boolean) {
+        if (isSubscribed == subscribed) return
+        isSubscribed = subscribed
+        onSubscriptionChanged(subscribed)
     }
 
     private fun handleEvent(json: JsonObject) {

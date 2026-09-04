@@ -1,0 +1,159 @@
+blueprint:
+  name: MC40 Configuration
+  description: >
+    Required home-screen configuration for the Motorola MC40 companion.
+    The app remains on its welcome screen until this automation responds to
+    mc40_boot with one or more mode slots.
+  domain: automation
+  source_url: https://github.com/pantherale0/motorola-mc40
+  author: pantherale0
+  homeassistant:
+    min_version: 2024.6.0
+  input:
+    notify_device:
+      name: MC40 device
+      description: The mobile_app device to configure.
+      selector:
+        device:
+          filter:
+            - integration: mobile_app
+    device_id:
+      name: Device ID
+      description: Must match the device name sent in mc40_boot events.
+      default: MC40N0
+      selector:
+        text:
+    default_mode:
+      name: Default mode ID
+      description: Used when the previously selected mode is not in this configuration.
+      default: use
+      selector:
+        text:
+    slot_1_id:
+      name: Slot 1 ID
+      default: use
+      selector:
+        text:
+    slot_1_label:
+      name: Slot 1 label
+      default: Use
+      selector:
+        text:
+    slot_1_behavior:
+      name: Slot 1 behavior
+      default: use
+      selector:
+        select:
+          options:
+            - label: Use
+              value: use
+            - label: Shopping
+              value: shopping
+    slot_2_id:
+      name: Slot 2 ID
+      default: shopping
+      selector:
+        text:
+    slot_2_label:
+      name: Slot 2 label
+      default: Shopping
+      selector:
+        text:
+    slot_2_behavior:
+      name: Slot 2 behavior
+      default: shopping
+      selector:
+        select:
+          options:
+            - label: Use
+              value: use
+            - label: Shopping
+              value: shopping
+    slot_3_id:
+      name: Slot 3 ID
+      description: Leave the ID or label empty to hide this slot.
+      default: ""
+      selector:
+        text:
+    slot_3_label:
+      name: Slot 3 label
+      default: ""
+      selector:
+        text:
+    slot_3_behavior:
+      name: Slot 3 behavior
+      default: use
+      selector:
+        select:
+          options:
+            - label: Use
+              value: use
+            - label: Shopping
+              value: shopping
+    slot_4_id:
+      name: Slot 4 ID
+      description: Leave the ID or label empty to hide this slot.
+      default: ""
+      selector:
+        text:
+    slot_4_label:
+      name: Slot 4 label
+      default: ""
+      selector:
+        text:
+    slot_4_behavior:
+      name: Slot 4 behavior
+      default: use
+      selector:
+        select:
+          options:
+            - label: Use
+              value: use
+            - label: Shopping
+              value: shopping
+
+variables:
+  configured_device_id: !input device_id
+
+trigger:
+  - platform: event
+    event_type: mc40_boot
+    id: boot
+  - platform: event
+    event_type: automation_reloaded
+    id: automation_reloaded
+  - platform: homeassistant
+    event: start
+    id: ha_started
+
+condition:
+  - condition: template
+    value_template: >-
+      {{ trigger.id != 'boot'
+         or trigger.event.data.device_id | default('') == configured_device_id }}
+
+action:
+  - device_id: !input notify_device
+    domain: mobile_app
+    type: notify
+    message: ui_config
+    data:
+      command: ui_config
+      schema: 1
+      default: !input default_mode
+      slots:
+        - id: !input slot_1_id
+          label: !input slot_1_label
+          behavior: !input slot_1_behavior
+        - id: !input slot_2_id
+          label: !input slot_2_label
+          behavior: !input slot_2_behavior
+        - id: !input slot_3_id
+          label: !input slot_3_label
+          behavior: !input slot_3_behavior
+        - id: !input slot_4_id
+          label: !input slot_4_label
+          behavior: !input slot_4_behavior
+
+mode: queued
+max: 10

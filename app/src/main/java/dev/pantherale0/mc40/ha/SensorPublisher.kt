@@ -4,6 +4,7 @@ import android.util.Log
 import com.google.gson.JsonArray
 import com.google.gson.JsonObject
 import com.google.gson.JsonParser
+import dev.pantherale0.mc40.BuildConfig
 import dev.pantherale0.mc40.Mc40App
 import dev.pantherale0.mc40.device.DeviceSensors
 import dev.pantherale0.mc40.overlay.TtsPlayer
@@ -102,6 +103,23 @@ class SensorPublisher(
         })
     }
 
+    fun publishBoot(step: String) {
+        ensureRegistered()
+        val event = JsonObject().apply {
+            addProperty("event_type", "mc40_boot")
+            add("event_data", JsonObject().apply {
+                addProperty("device_id", prefs.deviceName)
+                addProperty("app_version", BuildConfig.VERSION_NAME)
+                addProperty("schema", 1)
+                addProperty("step", step)
+            })
+        }
+        val fired = api.webhook("fire_event", event)
+        if (fired.isFailure) {
+            Log.w(Mc40App.TAG, "mc40_boot $step failed: ${fired.exceptionOrNull()?.message}")
+        }
+    }
+
     fun publishProximity(state: String) {
         ensureRegistered()
         api.webhook(
@@ -145,7 +163,7 @@ class SensorPublisher(
         measure: String,
         unit: String
     ) {
-        fireNamed("mc40_stock_adjust", barcode, name, quantity, measure, unit, "use")
+        fireNamed("mc40_stock_adjust", barcode, name, quantity, measure, unit, prefs.scannerMode)
     }
 
     fun publishShoppingAdd(
@@ -155,7 +173,7 @@ class SensorPublisher(
         measure: String,
         unit: String
     ) {
-        fireNamed("mc40_shopping_add", barcode, name, quantity, measure, unit, "shopping")
+        fireNamed("mc40_shopping_add", barcode, name, quantity, measure, unit, prefs.scannerMode)
     }
 
     private fun fireNamed(

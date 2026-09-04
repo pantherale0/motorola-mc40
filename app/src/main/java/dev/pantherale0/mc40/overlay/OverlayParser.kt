@@ -17,6 +17,8 @@ object OverlayParser {
             "feedback", "beep", "vibrate", "haptic", "led", "notify_led" -> OverlayAction.FEEDBACK
             "tts_stop", "stop_tts", "silence" -> OverlayAction.TTS_STOP
             "tts", "speak", "announce" -> OverlayAction.TTS
+            "ui_config", "configure_ui" -> OverlayAction.UI_CONFIG
+            "reinit", "reinitialize" -> OverlayAction.REINIT
             else -> if (!ttsText.isNullOrBlank()) OverlayAction.TTS else return null
         }
         val measure = when (string(data, "measure", "quantity_type")?.lowercase()) {
@@ -32,7 +34,7 @@ object OverlayParser {
         val unit = string(data, "unit") ?: if (measure == Measure.WEIGHT) "g" else "pcs"
         return OverlayCommand(
             action = action,
-            mode = ScannerMode.from(string(data, "mode")),
+            mode = modeValue(data),
             name = string(data, "name", "title", "product") ?: "",
             barcode = string(data, "barcode", "code") ?: "",
             imageUrl = string(data, "image_url", "image", "picture") ?: "",
@@ -48,8 +50,17 @@ object OverlayParser {
             ttsText = ttsText,
             ttsVolume = volumeValue(data),
             ttsStream = TtsPlayer.streamFrom(string(data, "stream", "media_stream")),
-            ttsLanguage = string(data, "language", "lang", "locale")
+            ttsLanguage = string(data, "language", "lang", "locale"),
+            uiConfig = if (action == OverlayAction.UI_CONFIG) UiConfigParser.parse(data) else null
         )
+    }
+
+    private fun modeValue(data: JsonObject): String? {
+        return when (val mode = string(data, "mode")?.lowercase()) {
+            "consume" -> "use"
+            "shop", "list" -> "shopping"
+            else -> mode
+        }
     }
 
     private fun ttsValue(event: JsonObject, data: JsonObject, command: String): String? {

@@ -6,7 +6,9 @@ enum class OverlayAction {
     DISMISS,
     FEEDBACK,
     TTS,
-    TTS_STOP
+    TTS_STOP,
+    UI_CONFIG,
+    REINIT
 }
 
 enum class Measure {
@@ -14,27 +16,9 @@ enum class Measure {
     COUNT
 }
 
-enum class ScannerMode {
-    USE,
-    SHOPPING;
-
-    val wire: String
-        get() = if (this == USE) "use" else "shopping"
-
-    companion object {
-        fun from(raw: String?): ScannerMode? {
-            return when (raw?.trim()?.lowercase()) {
-                "use", "consume" -> USE
-                "shopping", "shop", "list" -> SHOPPING
-                else -> null
-            }
-        }
-    }
-}
-
 data class OverlayCommand(
     val action: OverlayAction,
-    val mode: ScannerMode? = null,
+    val mode: String? = null,
     val name: String = "",
     val barcode: String = "",
     val imageUrl: String = "",
@@ -50,7 +34,8 @@ data class OverlayCommand(
     val ttsText: String? = null,
     val ttsVolume: Float? = null,
     val ttsStream: Int? = null,
-    val ttsLanguage: String? = null
+    val ttsLanguage: String? = null,
+    val uiConfig: UiConfig? = null
 ) {
     val hasFeedback: Boolean
         get() = !beep.isNullOrBlank() || vibrateMs != null || !ledColor.isNullOrBlank()

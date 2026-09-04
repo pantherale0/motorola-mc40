@@ -17,7 +17,9 @@ import dev.pantherale0.mc40.overlay.ModeBus
 import dev.pantherale0.mc40.overlay.OverlayAction
 import dev.pantherale0.mc40.overlay.OverlayBus
 import dev.pantherale0.mc40.overlay.TtsPlayer
-import dev.pantherale0.mc40.overlay.ScannerMode
+import dev.pantherale0.mc40.overlay.UiConfig
+import dev.pantherale0.mc40.overlay.UiConfigBus
+import dev.pantherale0.mc40.overlay.UiInitStage
 import dev.pantherale0.mc40.ha.HaApi
 import dev.pantherale0.mc40.ha.NotifySocket
 import dev.pantherale0.mc40.ha.SensorPublisher
@@ -40,9 +42,10 @@ class CompanionService : Service() {
     private lateinit var proximity: ProximityMonitor
     private lateinit var idle: IdlePowerController
     private var poll: ScheduledFuture<*>? = null
+    private var initRetry: ScheduledFuture<*>? = null
 
     private val dropNotify = Runnable {
-        if (!idle.interactive) {
+        if (!idle.interactive && UiConfigBus.isReady) {
             notify.disconnect()
             Log.i(Mc40App.TAG, "Notify socket dropped after idle grace")
         }
@@ -64,6 +67,19 @@ class CompanionService : Service() {
         }
     }
     private val overlayListener = OverlayBus.Listener { command ->
+        if (command.action == OverlayAction.UI_CONFIG) {
+            val config = command.uiConfig
+            if (config == null) {
+                Log.w(Mc40App.TAG, "Ignored invalid ui_config")
+            } else {
+                applyUiConfig(config)
+            }
+            return@Listener
+        }
+        if (command.action == OverlayAction.REINIT) {
+            restartUiInit()
+            return@Listener
+        }
         if (command.action == OverlayAction.TTS_STOP) {
             tts.stopSpeaking()
             return@Listener
@@ -79,7 +95,12 @@ class CompanionService : Service() {
         super.onCreate()
         api = HaApi(Mc40App.instance.prefs)
         sensors = SensorPublisher(api, Mc40App.instance.prefs)
-        notify = NotifySocket(Mc40App.instance.prefs)
+        notify = NotifySocket(Mc40App.instance.prefs) { subscribed ->
+            if (subscribed && !UiConfigBus.isReady) {
+                UiConfigBus.updateStage(UiInitStage.NOTIFY_CONNECTED)
+                executor.execute { startUiHandshake() }
+            }
+        }
         feedback = FeedbackPlayer(this)
         TtsPlayer.onReady = { ready ->
             if (Mc40App.instance.prefs.isRegistered) {
@@ -108,12 +129,15 @@ class CompanionService : Service() {
         OverlayBus.addListener(overlayListener)
         startForeground(NOTIF_ID, notification())
         idle.start()
+        if (Mc40App.instance.prefs.isRegistered) {
+            UiConfigBus.begin()
+        }
         if (idle.interactive) {
             proximity.start()
-            if (Mc40App.instance.prefs.isRegistered) {
-                notify.connect()
-            }
             startAwakePoll()
+        }
+        if (Mc40App.instance.prefs.isRegistered && (idle.interactive || !UiConfigBus.isReady)) {
+            notify.connect()
         }
         executor.execute { DataWedgeManager.switchToProfile(this) }
         if (Mc40App.instance.prefs.isRegistered) {
@@ -126,7 +150,7 @@ class CompanionService : Service() {
             publishSleepTick()
             return START_STICKY
         }
-        if (Mc40App.instance.prefs.isRegistered && idle.interactive) {
+        if (Mc40App.instance.prefs.isRegistered && (idle.interactive || !UiConfigBus.isReady)) {
             notify.ensureConnected()
         }
         return START_STICKY
@@ -135,6 +159,7 @@ class CompanionService : Service() {
     override fun onDestroy() {
         main.removeCallbacks(dropNotify)
         stopAwakePoll()
+        stopUiHandshake()
         idle.stop()
         ScanBus.removeListener(scanListener)
         ButtonBus.removeListener(buttonListener)
@@ -155,7 +180,11 @@ class CompanionService : Service() {
         main.removeCallbacks(dropNotify)
         proximity.stop()
         stopAwakePoll()
-        notify.disconnect()
+        if (UiConfigBus.isReady) {
+            notify.disconnect()
+        } else {
+            notify.ensureConnected()
+        }
         publishAsync("sleep")
     }
 
@@ -219,16 +248,66 @@ class CompanionService : Service() {
 
     private fun onScan(result: ScanResult) {
         val prefs = Mc40App.instance.prefs
-        if (!prefs.isRegistered || prefs.setupScanMode) return
+        if (!prefs.isRegistered || prefs.setupScanMode || !UiConfigBus.isReady) return
         wakeNotifyBriefly()
         runIo {
             runCatching {
                 sensors.publishScan(result)
-                if (prefs.scannerMode == ScannerMode.SHOPPING.wire) {
+                if (currentBehavior() == UiConfig.BEHAVIOR_SHOPPING) {
                     sensors.publishShoppingAdd(result.data, "", 1.0, "count", "pcs")
                 }
             }.onFailure { Log.w(Mc40App.TAG, "Scan publish failed: ${it.message}") }
         }
+    }
+
+    private fun startUiHandshake() {
+        if (!notify.isSubscribed || UiConfigBus.isReady) return
+        stopUiHandshake()
+        sensors.publishBoot("start")
+        UiConfigBus.updateStage(UiInitStage.WAITING_FOR_BLUEPRINT)
+        initRetry = executor.scheduleAtFixedRate({
+            if (!UiConfigBus.isReady && notify.isSubscribed) {
+                sensors.publishBoot("timeout")
+            }
+        }, UI_INIT_RETRY_SEC, UI_INIT_RETRY_SEC, TimeUnit.SECONDS)
+    }
+
+    private fun stopUiHandshake() {
+        initRetry?.cancel(false)
+        initRetry = null
+    }
+
+    private fun applyUiConfig(config: UiConfig) {
+        UiConfigBus.updateStage(UiInitStage.APPLYING)
+        val prefs = Mc40App.instance.prefs
+        if (config.slots.none { it.id == prefs.scannerMode }) {
+            prefs.scannerMode = config.defaultMode
+        }
+        stopUiHandshake()
+        UiConfigBus.apply(config)
+        if (!idle.interactive) {
+            notify.disconnect()
+        }
+        executor.execute {
+            sensors.publishMode()
+            sensors.publishBoot("complete")
+        }
+    }
+
+    private fun restartUiInit() {
+        stopUiHandshake()
+        UiConfigBus.begin()
+        notify.ensureConnected()
+        if (notify.isSubscribed) {
+            UiConfigBus.updateStage(UiInitStage.NOTIFY_CONNECTED)
+            executor.execute { startUiHandshake() }
+        }
+    }
+
+    private fun currentBehavior(): String {
+        return UiConfigBus.state.config
+            ?.behaviorFor(Mc40App.instance.prefs.scannerMode)
+            ?: UiConfig.BEHAVIOR_USE
     }
 
     private fun notification(): Notification {
@@ -251,6 +330,7 @@ class CompanionService : Service() {
     companion object {
         private const val NOTIF_ID = 40
         private const val AWAKE_POLL_SEC = 60L
+        private const val UI_INIT_RETRY_SEC = 10L
         private val NOTIFY_GRACE_MS = TimeUnit.SECONDS.toMillis(45)
     }
 }

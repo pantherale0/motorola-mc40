@@ -278,7 +278,10 @@ class CompanionService : Service() {
     }
 
     private fun applyUiConfig(config: UiConfig) {
-        UiConfigBus.updateStage(UiInitStage.APPLYING)
+        val firstApply = !UiConfigBus.isReady
+        if (firstApply) {
+            UiConfigBus.updateStage(UiInitStage.APPLYING)
+        }
         val prefs = Mc40App.instance.prefs
         if (config.slots.none { it.id == prefs.scannerMode }) {
             prefs.scannerMode = config.defaultMode
@@ -290,7 +293,12 @@ class CompanionService : Service() {
         }
         executor.execute {
             sensors.publishMode()
-            sensors.publishBoot("complete")
+            // Only the first successful init reports complete. Live re-pushes
+            // (automation reload / HA start) must not fire mc40_boot again or
+            // the configuration blueprint would loop on every reply.
+            if (firstApply) {
+                sensors.publishBoot("complete")
+            }
         }
     }
 

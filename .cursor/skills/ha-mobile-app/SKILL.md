@@ -18,9 +18,21 @@ Scan path after registration:
 
 Keep `binary_sensor.scanner_ready` in sync with DataWedge profile status.
 
-Home UI initialization is required. After local push subscribes, fire `mc40_boot` (`device_id`, `app_version`, `schema: 1`, `step`) every 10 seconds until the MC40 Configuration blueprint replies with notify `command: ui_config`. Schema 1 has `default` and 1–4 `slots` (`id`, `label`, `behavior: use|shopping`). Cache only in-process. `command: reinit` clears it and repeats the handshake. Gate grocery scans and overlays until ready.
+Home UI initialization is required. After local push subscribes, fire `mc40_boot` (`device_id`, `app_version`, `schema: 3`, `step`) every 10 seconds until the MC40 Configuration blueprint replies with notify `command: ui_config`. Accept schema `1`–`3`. Schema 1: slots only. Schema 2: + actions (`kind: event|search`). Schema 3: + pages/widgets (`text`, `button`, `nav`); top-level actions ignored when pages are present. Persist the last valid config to prefs and restore it on process start (READY immediately); then soft-fire one `mc40_boot` `start` when notify subscribes so HA can refresh. `command: reinit` or unregister clears the cache and repeats the full handshake. Gate grocery scans and overlays until ready (cache or HA).
 
-Notify `data.command` values: `ui_config`, `reinit`, `overlay`, `set_mode`, `dismiss`, `feedback`, `beep`, `vibrate`, `led`, `tts`, `tts_stop`. `set_mode` accepts a configured slot ID. Feedback fields: `beep` (`ok`/`error`/`scan`), `vibrate` (ms), `led` (color name or `off`), `led_duration` (seconds). TTS: `tts_text`, optional `volume` / `stream` / `language`. Uses on-device Pico TTS.
+Behaviors: `use` (confirm → `mc40_stock_adjust`), `shopping` (scan also `mc40_shopping_add`; confirm → shopping), `custom` (confirm → `mc40_mode_confirm`). Home action / page button `kind: event` → `mc40_home_action`; `kind: search` opens on-device search. Page `nav` switches locally; `set_page` notify also switches; both fire `mc40_page_changed`.
+
+Notify `data.command` values: `ui_config`, `reinit`, `overlay`, `set_mode`, `set_page`, `dismiss`, `feedback`, `beep`, `vibrate`, `led`, `tts`, `tts_stop`, `toast`, `form`, `list`, `search`, `search_results`.
+
+Runtime UI (gated until ready):
+
+- `toast` — `message`/`text` (max 120), `level` (`info`/`ok`/`error`), `duration` (`short`/`long`); optional feedback fields.
+- `form` — `id` required, `title`, up to 4 `fields` (`id`, `label`, `type: text|number|toggle|select|barcode`, `value`, `placeholder`, `options` for select), `confirm_label`/`cancel_label`, `timeout`. Barcode fields consume hardware scans (no grocery publish). Submit → `mc40_form_submit` (string `values`). Cancel/timeout → `mc40_form_cancel`.
+- `list` / `picker` — `id` required, up to 40 `items`. Select → `mc40_list_select`.
+- `search` / `search_results` — on-device query → `mc40_search`; blueprint script returns items.
+- `set_page` — `page` / `id` must match a configured page.
+
+`dismiss` clears product overlay, form, list, and search. One modal at a time.
 
 The notify WebSocket is open while the screen is on. `SCREEN_OFF` disconnects it (10-minute diagnostic webhook updates continue). A scan or PTT briefly reconnects so overlay/feedback can arrive.
 

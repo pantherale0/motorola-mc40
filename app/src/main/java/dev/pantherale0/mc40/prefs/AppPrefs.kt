@@ -48,6 +48,10 @@ class AppPrefs(context: Context) {
         get() = prefs.getString(KEY_MODE, "use") ?: "use"
         set(value) = prefs.edit().putString(KEY_MODE, value).apply()
 
+    var uiConfigJson: String
+        get() = prefs.getString(KEY_UI_CONFIG, "") ?: ""
+        set(value) = prefs.edit().putString(KEY_UI_CONFIG, value).apply()
+
     val isRegistered: Boolean
         get() = webhookId.isNotEmpty() && instanceUrl.isNotEmpty() && accessToken.isNotEmpty()
 
@@ -57,12 +61,17 @@ class AppPrefs(context: Context) {
         return "$base/api/webhook/$webhookId"
     }
 
+    fun clearUiConfig() {
+        prefs.edit().remove(KEY_UI_CONFIG).apply()
+    }
+
     fun clearRegistration() {
         secrets.remove(KEY_WEBHOOK)
         secrets.remove(KEY_CLOUDHOOK)
         prefs.edit()
             .remove(KEY_REMOTE_UI)
             .remove(KEY_SENSORS)
+            .remove(KEY_UI_CONFIG)
             .apply()
     }
 
@@ -77,5 +86,6 @@ class AppPrefs(context: Context) {
         private const val KEY_SCANNER = "scanner_ready"
         private const val KEY_SETUP_SCAN = "setup_scan_mode"
         private const val KEY_MODE = "scanner_mode"
+        private const val KEY_UI_CONFIG = "ui_config_json"
     }
 }

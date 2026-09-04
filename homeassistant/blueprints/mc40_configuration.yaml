@@ -1,10 +1,10 @@
 blueprint:
   name: MC40 Configuration
   description: >
-    Required home-screen configuration for the Motorola MC40 companion.
-    The app remains on its welcome screen until this automation responds to
-    mc40_boot (step start or timeout) with one or more mode slots. step=complete
-    is ignored so the handshake cannot loop after a successful apply.
+    Required home-screen configuration for the Motorola MC40 companion (schema 3).
+    Responds to mc40_boot with mode slots, optional pages/widgets, and legacy home
+    actions when no pages are set. Also handles mc40_search via an optional script
+    (response_variable items). step=complete is ignored so the handshake cannot loop.
   domain: automation
   source_url: https://github.com/pantherale0/motorola-mc40
   author: pantherale0
@@ -20,7 +20,7 @@ blueprint:
             - integration: mobile_app
     device_id:
       name: Device ID
-      description: Must match the device name sent in mc40_boot events.
+      description: Must match the device name sent in mc40_boot / mc40_search events.
       default: MC40N0
       selector:
         text:
@@ -30,6 +30,22 @@ blueprint:
       default: use
       selector:
         text:
+    default_page:
+      name: Default page ID
+      description: Opening page when pages are configured. Leave empty to use the first page.
+      default: home
+      selector:
+        text:
+    search_script:
+      name: Search script
+      description: >
+        Optional. Called on mc40_search with search_id, query, mode, device_id.
+        Must return a mapping { items: [ {id, label, subtitle?}, ... ] } via
+        response_variable. Use script mode parallel or restart (not queued).
+      default:
+      selector:
+        entity:
+          domain: script
     slot_1_id:
       name: Slot 1 ID
       default: use
@@ -50,6 +66,8 @@ blueprint:
               value: use
             - label: Shopping
               value: shopping
+            - label: Custom
+              value: custom
     slot_2_id:
       name: Slot 2 ID
       default: shopping
@@ -70,6 +88,8 @@ blueprint:
               value: use
             - label: Shopping
               value: shopping
+            - label: Custom
+              value: custom
     slot_3_id:
       name: Slot 3 ID
       description: Leave the ID or label empty to hide this slot.
@@ -91,6 +111,8 @@ blueprint:
               value: use
             - label: Shopping
               value: shopping
+            - label: Custom
+              value: custom
     slot_4_id:
       name: Slot 4 ID
       description: Leave the ID or label empty to hide this slot.
@@ -112,14 +134,387 @@ blueprint:
               value: use
             - label: Shopping
               value: shopping
+            - label: Custom
+              value: custom
+    page_1_id:
+      name: Page 1 ID
+      description: Leave empty for schema-2 style home actions only (no pages).
+      default: home
+      selector:
+        text:
+    page_1_label:
+      name: Page 1 label
+      default: Home
+      selector:
+        text:
+    page_2_id:
+      name: Page 2 ID
+      description: Leave empty to omit.
+      default: ""
+      selector:
+        text:
+    page_2_label:
+      name: Page 2 label
+      default: ""
+      selector:
+        text:
+    page_3_id:
+      name: Page 3 ID
+      description: Leave empty to omit.
+      default: ""
+      selector:
+        text:
+    page_3_label:
+      name: Page 3 label
+      default: ""
+      selector:
+        text:
+    widget_1_page:
+      name: Widget 1 page ID
+      description: Must match a page id. Leave empty to skip this widget.
+      default: home
+      selector:
+        text:
+    widget_1_type:
+      name: Widget 1 type
+      default: text
+      selector:
+        select:
+          options:
+            - label: Text
+              value: text
+            - label: Button
+              value: button
+            - label: Navigate
+              value: nav
+    widget_1_id:
+      name: Widget 1 ID
+      default: hint
+      selector:
+        text:
+    widget_1_label:
+      name: Widget 1 label
+      default: Scan a product barcode
+      selector:
+        text:
+    widget_1_kind:
+      name: Widget 1 button kind
+      default: event
+      selector:
+        select:
+          options:
+            - label: Event
+              value: event
+            - label: Search
+              value: search
+    widget_1_target:
+      name: Widget 1 nav target page
+      default: ""
+      selector:
+        text:
+    widget_2_page:
+      name: Widget 2 page ID
+      default: home
+      selector:
+        text:
+    widget_2_type:
+      name: Widget 2 type
+      default: button
+      selector:
+        select:
+          options:
+            - label: Text
+              value: text
+            - label: Button
+              value: button
+            - label: Navigate
+              value: nav
+    widget_2_id:
+      name: Widget 2 ID
+      default: products
+      selector:
+        text:
+    widget_2_label:
+      name: Widget 2 label
+      default: Search
+      selector:
+        text:
+    widget_2_kind:
+      name: Widget 2 button kind
+      default: search
+      selector:
+        select:
+          options:
+            - label: Event
+              value: event
+            - label: Search
+              value: search
+    widget_2_target:
+      name: Widget 2 nav target page
+      default: ""
+      selector:
+        text:
+    widget_3_page:
+      name: Widget 3 page ID
+      default: ""
+      selector:
+        text:
+    widget_3_type:
+      name: Widget 3 type
+      default: button
+      selector:
+        select:
+          options:
+            - label: Text
+              value: text
+            - label: Button
+              value: button
+            - label: Navigate
+              value: nav
+    widget_3_id:
+      name: Widget 3 ID
+      default: ""
+      selector:
+        text:
+    widget_3_label:
+      name: Widget 3 label
+      default: ""
+      selector:
+        text:
+    widget_3_kind:
+      name: Widget 3 button kind
+      default: event
+      selector:
+        select:
+          options:
+            - label: Event
+              value: event
+            - label: Search
+              value: search
+    widget_3_target:
+      name: Widget 3 nav target page
+      default: ""
+      selector:
+        text:
+    widget_4_page:
+      name: Widget 4 page ID
+      default: ""
+      selector:
+        text:
+    widget_4_type:
+      name: Widget 4 type
+      default: button
+      selector:
+        select:
+          options:
+            - label: Text
+              value: text
+            - label: Button
+              value: button
+            - label: Navigate
+              value: nav
+    widget_4_id:
+      name: Widget 4 ID
+      default: ""
+      selector:
+        text:
+    widget_4_label:
+      name: Widget 4 label
+      default: ""
+      selector:
+        text:
+    widget_4_kind:
+      name: Widget 4 button kind
+      default: event
+      selector:
+        select:
+          options:
+            - label: Event
+              value: event
+            - label: Search
+              value: search
+    widget_4_target:
+      name: Widget 4 nav target page
+      default: ""
+      selector:
+        text:
+    widget_5_page:
+      name: Widget 5 page ID
+      default: ""
+      selector:
+        text:
+    widget_5_type:
+      name: Widget 5 type
+      default: button
+      selector:
+        select:
+          options:
+            - label: Text
+              value: text
+            - label: Button
+              value: button
+            - label: Navigate
+              value: nav
+    widget_5_id:
+      name: Widget 5 ID
+      default: ""
+      selector:
+        text:
+    widget_5_label:
+      name: Widget 5 label
+      default: ""
+      selector:
+        text:
+    widget_5_kind:
+      name: Widget 5 button kind
+      default: event
+      selector:
+        select:
+          options:
+            - label: Event
+              value: event
+            - label: Search
+              value: search
+    widget_5_target:
+      name: Widget 5 nav target page
+      default: ""
+      selector:
+        text:
+    widget_6_page:
+      name: Widget 6 page ID
+      default: ""
+      selector:
+        text:
+    widget_6_type:
+      name: Widget 6 type
+      default: button
+      selector:
+        select:
+          options:
+            - label: Text
+              value: text
+            - label: Button
+              value: button
+            - label: Navigate
+              value: nav
+    widget_6_id:
+      name: Widget 6 ID
+      default: ""
+      selector:
+        text:
+    widget_6_label:
+      name: Widget 6 label
+      default: ""
+      selector:
+        text:
+    widget_6_kind:
+      name: Widget 6 button kind
+      default: event
+      selector:
+        select:
+          options:
+            - label: Event
+              value: event
+            - label: Search
+              value: search
+    widget_6_target:
+      name: Widget 6 nav target page
+      default: ""
+      selector:
+        text:
+    action_1_id:
+      name: Legacy action 1 ID
+      description: Used only when no pages are configured.
+      default: ""
+      selector:
+        text:
+    action_1_label:
+      name: Legacy action 1 label
+      default: ""
+      selector:
+        text:
+    action_1_kind:
+      name: Legacy action 1 kind
+      default: event
+      selector:
+        select:
+          options:
+            - label: Event (mc40_home_action)
+              value: event
+            - label: Search (on-device query)
+              value: search
+    action_2_id:
+      name: Legacy action 2 ID
+      default: ""
+      selector:
+        text:
+    action_2_label:
+      name: Legacy action 2 label
+      default: ""
+      selector:
+        text:
+    action_2_kind:
+      name: Legacy action 2 kind
+      default: event
+      selector:
+        select:
+          options:
+            - label: Event (mc40_home_action)
+              value: event
+            - label: Search (on-device query)
+              value: search
+    action_3_id:
+      name: Legacy action 3 ID
+      default: ""
+      selector:
+        text:
+    action_3_label:
+      name: Legacy action 3 label
+      default: ""
+      selector:
+        text:
+    action_3_kind:
+      name: Legacy action 3 kind
+      default: event
+      selector:
+        select:
+          options:
+            - label: Event (mc40_home_action)
+              value: event
+            - label: Search (on-device query)
+              value: search
+    action_4_id:
+      name: Legacy action 4 ID
+      default: ""
+      selector:
+        text:
+    action_4_label:
+      name: Legacy action 4 label
+      default: ""
+      selector:
+        text:
+    action_4_kind:
+      name: Legacy action 4 kind
+      default: event
+      selector:
+        select:
+          options:
+            - label: Event (mc40_home_action)
+              value: event
+            - label: Search (on-device query)
+              value: search
 
 variables:
   configured_device_id: !input device_id
+  search_script_entity: !input search_script
 
 trigger:
   - platform: event
     event_type: mc40_boot
     id: boot
+  - platform: event
+    event_type: mc40_search
+    id: search
   - platform: event
     event_type: automation_reloaded
     id: automation_reloaded
@@ -133,32 +528,133 @@ condition:
       {% if trigger.id == 'boot' %}
         {{ trigger.event.data.device_id | default('') == configured_device_id
            and trigger.event.data.step | default('') in ['start', 'timeout'] }}
+      {% elif trigger.id == 'search' %}
+        {{ trigger.event.data.device_id | default('') == configured_device_id }}
       {% else %}
         true
       {% endif %}
 
 action:
-  - device_id: !input notify_device
-    domain: mobile_app
-    type: notify
-    message: ui_config
-    data:
-      command: ui_config
-      schema: 1
-      default: !input default_mode
-      slots:
-        - id: !input slot_1_id
-          label: !input slot_1_label
-          behavior: !input slot_1_behavior
-        - id: !input slot_2_id
-          label: !input slot_2_label
-          behavior: !input slot_2_behavior
-        - id: !input slot_3_id
-          label: !input slot_3_label
-          behavior: !input slot_3_behavior
-        - id: !input slot_4_id
-          label: !input slot_4_label
-          behavior: !input slot_4_behavior
+  - choose:
+      - conditions:
+          - condition: trigger
+            id:
+              - boot
+              - automation_reloaded
+              - ha_started
+        sequence:
+          - device_id: !input notify_device
+            domain: mobile_app
+            type: notify
+            message: ui_config
+            data:
+              command: ui_config
+              schema: 3
+              default: !input default_mode
+              default_page: !input default_page
+              slots:
+                - id: !input slot_1_id
+                  label: !input slot_1_label
+                  behavior: !input slot_1_behavior
+                - id: !input slot_2_id
+                  label: !input slot_2_label
+                  behavior: !input slot_2_behavior
+                - id: !input slot_3_id
+                  label: !input slot_3_label
+                  behavior: !input slot_3_behavior
+                - id: !input slot_4_id
+                  label: !input slot_4_label
+                  behavior: !input slot_4_behavior
+              page_1_id: !input page_1_id
+              page_1_label: !input page_1_label
+              page_2_id: !input page_2_id
+              page_2_label: !input page_2_label
+              page_3_id: !input page_3_id
+              page_3_label: !input page_3_label
+              widget_1_page: !input widget_1_page
+              widget_1_type: !input widget_1_type
+              widget_1_id: !input widget_1_id
+              widget_1_label: !input widget_1_label
+              widget_1_kind: !input widget_1_kind
+              widget_1_target: !input widget_1_target
+              widget_2_page: !input widget_2_page
+              widget_2_type: !input widget_2_type
+              widget_2_id: !input widget_2_id
+              widget_2_label: !input widget_2_label
+              widget_2_kind: !input widget_2_kind
+              widget_2_target: !input widget_2_target
+              widget_3_page: !input widget_3_page
+              widget_3_type: !input widget_3_type
+              widget_3_id: !input widget_3_id
+              widget_3_label: !input widget_3_label
+              widget_3_kind: !input widget_3_kind
+              widget_3_target: !input widget_3_target
+              widget_4_page: !input widget_4_page
+              widget_4_type: !input widget_4_type
+              widget_4_id: !input widget_4_id
+              widget_4_label: !input widget_4_label
+              widget_4_kind: !input widget_4_kind
+              widget_4_target: !input widget_4_target
+              widget_5_page: !input widget_5_page
+              widget_5_type: !input widget_5_type
+              widget_5_id: !input widget_5_id
+              widget_5_label: !input widget_5_label
+              widget_5_kind: !input widget_5_kind
+              widget_5_target: !input widget_5_target
+              widget_6_page: !input widget_6_page
+              widget_6_type: !input widget_6_type
+              widget_6_id: !input widget_6_id
+              widget_6_label: !input widget_6_label
+              widget_6_kind: !input widget_6_kind
+              widget_6_target: !input widget_6_target
+              actions:
+                - id: !input action_1_id
+                  label: !input action_1_label
+                  kind: !input action_1_kind
+                - id: !input action_2_id
+                  label: !input action_2_label
+                  kind: !input action_2_kind
+                - id: !input action_3_id
+                  label: !input action_3_label
+                  kind: !input action_3_kind
+                - id: !input action_4_id
+                  label: !input action_4_label
+                  kind: !input action_4_kind
+      - conditions:
+          - condition: trigger
+            id: search
+          - condition: template
+            value_template: "{{ search_script_entity not in [none, '', 'none'] }}"
+        sequence:
+          - action: !input search_script
+            data:
+              search_id: "{{ trigger.event.data.search_id }}"
+              query: "{{ trigger.event.data.query }}"
+              mode: "{{ trigger.event.data.mode }}"
+              device_id: "{{ trigger.event.data.device_id }}"
+            response_variable: search_result
+          - device_id: !input notify_device
+            domain: mobile_app
+            type: notify
+            message: search_results
+            data:
+              command: search_results
+              id: "{{ trigger.event.data.search_id }}"
+              items: "{{ search_result.items | default([]) }}"
+      - conditions:
+          - condition: trigger
+            id: search
+        sequence:
+          - device_id: !input notify_device
+            domain: mobile_app
+            type: notify
+            message: toast
+            data:
+              command: toast
+              message: No search script configured
+              level: error
+              duration: short
+              beep: error
 
 mode: queued
 max: 10

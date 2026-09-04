@@ -8,6 +8,7 @@ import dev.pantherale0.mc40.BuildConfig
 import dev.pantherale0.mc40.Mc40App
 import dev.pantherale0.mc40.device.DeviceSensors
 import dev.pantherale0.mc40.overlay.TtsPlayer
+import dev.pantherale0.mc40.overlay.UiConfig
 import dev.pantherale0.mc40.prefs.AppPrefs
 import dev.pantherale0.mc40.scan.ScanResult
 
@@ -110,7 +111,7 @@ class SensorPublisher(
             add("event_data", JsonObject().apply {
                 addProperty("device_id", prefs.deviceName)
                 addProperty("app_version", BuildConfig.VERSION_NAME)
-                addProperty("schema", 1)
+                addProperty("schema", UiConfig.MAX_SCHEMA)
                 addProperty("step", step)
             })
         }
@@ -174,6 +175,124 @@ class SensorPublisher(
         unit: String
     ) {
         fireNamed("mc40_shopping_add", barcode, name, quantity, measure, unit, prefs.scannerMode)
+    }
+
+    fun publishModeConfirm(
+        barcode: String,
+        name: String,
+        quantity: Double,
+        measure: String,
+        unit: String
+    ) {
+        fireNamed("mc40_mode_confirm", barcode, name, quantity, measure, unit, prefs.scannerMode)
+    }
+
+    fun publishHomeAction(actionId: String, label: String) {
+        val event = JsonObject().apply {
+            addProperty("event_type", "mc40_home_action")
+            add("event_data", JsonObject().apply {
+                addProperty("device_id", prefs.deviceName)
+                addProperty("action_id", actionId)
+                addProperty("label", label)
+                addProperty("mode", prefs.scannerMode)
+                addProperty("pressed_at", DeviceSensors.nowIso())
+            })
+        }
+        fireRaw(event, "mc40_home_action")
+    }
+
+    fun publishSearch(searchId: String, query: String) {
+        val event = JsonObject().apply {
+            addProperty("event_type", "mc40_search")
+            add("event_data", JsonObject().apply {
+                addProperty("device_id", prefs.deviceName)
+                addProperty("search_id", searchId)
+                addProperty("query", query)
+                addProperty("mode", prefs.scannerMode)
+                addProperty("searched_at", DeviceSensors.nowIso())
+            })
+        }
+        fireRaw(event, "mc40_search")
+    }
+
+    fun publishPageChanged(pageId: String, label: String) {
+        val event = JsonObject().apply {
+            addProperty("event_type", "mc40_page_changed")
+            add("event_data", JsonObject().apply {
+                addProperty("device_id", prefs.deviceName)
+                addProperty("page_id", pageId)
+                addProperty("label", label)
+                addProperty("mode", prefs.scannerMode)
+                addProperty("changed_at", DeviceSensors.nowIso())
+            })
+        }
+        fireRaw(event, "mc40_page_changed")
+    }
+
+    fun publishFormSubmit(formId: String, values: Map<String, String>) {
+        val event = JsonObject().apply {
+            addProperty("event_type", "mc40_form_submit")
+            add("event_data", JsonObject().apply {
+                addProperty("device_id", prefs.deviceName)
+                addProperty("form_id", formId)
+                addProperty("mode", prefs.scannerMode)
+                addProperty("submitted_at", DeviceSensors.nowIso())
+                add("values", JsonObject().apply {
+                    for ((key, value) in values) addProperty(key, value)
+                })
+            })
+        }
+        fireRaw(event, "mc40_form_submit")
+    }
+
+    fun publishFormCancel(formId: String, reason: String) {
+        val event = JsonObject().apply {
+            addProperty("event_type", "mc40_form_cancel")
+            add("event_data", JsonObject().apply {
+                addProperty("device_id", prefs.deviceName)
+                addProperty("form_id", formId)
+                addProperty("mode", prefs.scannerMode)
+                addProperty("reason", reason)
+                addProperty("cancelled_at", DeviceSensors.nowIso())
+            })
+        }
+        fireRaw(event, "mc40_form_cancel")
+    }
+
+    fun publishListSelect(listId: String, itemId: String, label: String) {
+        val event = JsonObject().apply {
+            addProperty("event_type", "mc40_list_select")
+            add("event_data", JsonObject().apply {
+                addProperty("device_id", prefs.deviceName)
+                addProperty("list_id", listId)
+                addProperty("item_id", itemId)
+                addProperty("label", label)
+                addProperty("mode", prefs.scannerMode)
+                addProperty("selected_at", DeviceSensors.nowIso())
+            })
+        }
+        fireRaw(event, "mc40_list_select")
+    }
+
+    fun publishListCancel(listId: String, reason: String) {
+        val event = JsonObject().apply {
+            addProperty("event_type", "mc40_list_cancel")
+            add("event_data", JsonObject().apply {
+                addProperty("device_id", prefs.deviceName)
+                addProperty("list_id", listId)
+                addProperty("mode", prefs.scannerMode)
+                addProperty("reason", reason)
+                addProperty("cancelled_at", DeviceSensors.nowIso())
+            })
+        }
+        fireRaw(event, "mc40_list_cancel")
+    }
+
+    private fun fireRaw(event: JsonObject, label: String) {
+        val fired = api.webhook("fire_event", event)
+        if (fired.isFailure) {
+            Log.w(Mc40App.TAG, "$label failed: ${fired.exceptionOrNull()?.message}")
+        }
     }
 
     private fun fireNamed(

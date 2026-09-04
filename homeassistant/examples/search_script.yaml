@@ -1,0 +1,56 @@
+# Example search script for the MC40 Configuration blueprint.
+# Assign this script to the blueprint "Search script" input.
+# Use mode: parallel or restart (not queued) so response_variable works.
+
+script:
+  mc40_product_search:
+    alias: MC40 product search
+    mode: parallel
+    fields:
+      search_id:
+        description: Correlation id from the device
+        example: products
+      query:
+        description: User search text
+        example: flour
+      mode:
+        description: Current scanner mode
+      device_id:
+        description: MC40 device name
+    sequence:
+      - variables:
+          q: "{{ query | default('') | lower }}"
+          # Replace this stub with a real lookup (shopping list, Grocy, template, etc.).
+          matched:
+            - id: "200012570"
+              label: Plain flour
+              subtitle: "1 kg"
+            - id: "200012571"
+              label: Self-raising flour
+              subtitle: "500 g"
+          filtered: >-
+            {{ matched
+               | selectattr('label', 'search', query | default(''), true)
+               | list }}
+          result:
+            items: "{{ filtered }}"
+      - stop: Search complete
+        response_variable: result
+
+# After selecting a result, the device fires mc40_list_select with list_id = search_id.
+# automation:
+#   - alias: MC40 search select
+#     trigger:
+#       - platform: event
+#         event_type: mc40_list_select
+#     condition:
+#       - condition: template
+#         value_template: "{{ trigger.event.data.list_id == 'products' }}"
+#     action:
+#       - action: notify.mobile_app_mc40n0
+#         data:
+#           message: toast
+#           data:
+#             command: toast
+#             message: "Picked {{ trigger.event.data.label }}"
+#             level: ok

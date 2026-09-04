@@ -1,0 +1,139 @@
+# Example notify commands: toast, form, and list picker.
+# Requires the MC40 Configuration blueprint so the device is past the welcome screen.
+
+automation:
+  - alias: MC40 toast on unknown barcode
+    trigger:
+      - platform: event
+        event_type: mc40_barcode_scanned
+    condition:
+      - condition: template
+        value_template: "{{ trigger.event.data.barcode | length < 8 }}"
+    action:
+      - action: notify.mobile_app_mc40n0
+        data:
+          message: toast
+          data:
+            command: toast
+            message: "Barcode looks invalid"
+            level: error
+            duration: short
+            beep: error
+            led: red
+            led_duration: 2
+
+  - alias: MC40 note form after use scan
+    trigger:
+      - platform: event
+        event_type: mc40_barcode_scanned
+    condition:
+      - condition: template
+        value_template: "{{ trigger.event.data.mode == 'use' }}"
+    action:
+      - action: notify.mobile_app_mc40n0
+        data:
+          message: form
+          data:
+            command: form
+            id: add_note
+            title: "Note for {{ trigger.event.data.barcode }}"
+            confirm_label: Save
+            cancel_label: Skip
+            timeout: 60
+            fields:
+              - id: note
+                label: Note
+                type: text
+                placeholder: Optional note
+              - id: qty
+                label: Qty
+                type: number
+                value: "1"
+
+  - alias: MC40 receive form on PTT long-press style
+    trigger:
+      - platform: event
+        event_type: mc40_home_action
+    condition:
+      - condition: template
+        value_template: "{{ trigger.event.data.action_id == 'receive' }}"
+    action:
+      - action: notify.mobile_app_mc40n0
+        data:
+          message: form
+          data:
+            command: form
+            id: receive_stock
+            title: Receive stock
+            confirm_label: Save
+            fields:
+              - id: code
+                label: Barcode
+                type: barcode
+              - id: qty
+                label: Qty
+                type: number
+                value: "1"
+              - id: unit
+                label: Unit
+                type: select
+                value: pcs
+                options:
+                  - pcs
+                  - g
+              - id: opened
+                label: Already open
+                type: toggle
+                value: false
+
+  - alias: MC40 form submit
+    trigger:
+      - platform: event
+        event_type: mc40_form_submit
+    condition:
+      - condition: template
+        value_template: "{{ trigger.event.data.form_id in ['add_note', 'receive_stock'] }}"
+    action:
+      - action: persistent_notification.create
+        data:
+          title: "MC40 form {{ trigger.event.data.form_id }}"
+          message: "{{ trigger.event.data.values }}"
+
+  - alias: MC40 pick shopping list on PTT
+    trigger:
+      - platform: event
+        event_type: mc40_button_pressed
+    condition:
+      - condition: template
+        value_template: "{{ trigger.event.data.button == 'ptt' }}"
+    action:
+      - action: notify.mobile_app_mc40n0
+        data:
+          message: list
+          data:
+            command: list
+            id: pick_list
+            title: Shopping lists
+            filter: true
+            timeout: 45
+            items:
+              - id: groceries
+                label: Groceries
+                subtitle: Weekly shop
+              - id: hardware
+                label: Hardware
+              - id: pharmacy
+                label: Pharmacy
+
+  - alias: MC40 list select
+    trigger:
+      - platform: event
+        event_type: mc40_list_select
+    condition:
+      - condition: template
+        value_template: "{{ trigger.event.data.list_id == 'pick_list' }}"
+    action:
+      - action: persistent_notification.create
+        data:
+          title: "MC40 list"
+          message: "Selected {{ trigger.event.data.label }} ({{ trigger.event.data.item_id }})"

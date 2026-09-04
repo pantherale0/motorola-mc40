@@ -1,0 +1,83 @@
+# Example: schema 2 home actions and custom-mode confirm.
+# Configure action buttons in mc40_configuration (e.g. lists / note),
+# then handle mc40_home_action and mc40_mode_confirm here.
+
+automation:
+  - alias: MC40 home action lists
+    trigger:
+      - platform: event
+        event_type: mc40_home_action
+    condition:
+      - condition: template
+        value_template: "{{ trigger.event.data.action_id == 'lists' }}"
+    action:
+      - action: notify.mobile_app_mc40n0
+        data:
+          message: list
+          data:
+            command: list
+            id: pick_list
+            title: Shopping lists
+            filter: true
+            timeout: 45
+            items:
+              - id: groceries
+                label: Groceries
+                subtitle: Weekly shop
+              - id: hardware
+                label: Hardware
+              - id: pharmacy
+                label: Pharmacy
+
+  - alias: MC40 home action note
+    trigger:
+      - platform: event
+        event_type: mc40_home_action
+    condition:
+      - condition: template
+        value_template: "{{ trigger.event.data.action_id == 'note' }}"
+    action:
+      - action: notify.mobile_app_mc40n0
+        data:
+          message: form
+          data:
+            command: form
+            id: quick_note
+            title: Quick note
+            confirm_label: Save
+            fields:
+              - id: note
+                label: Note
+                type: text
+                placeholder: Type a note
+
+  - alias: MC40 custom mode confirm
+    trigger:
+      - platform: event
+        event_type: mc40_mode_confirm
+    action:
+      - action: persistent_notification.create
+        data:
+          title: "MC40 confirm ({{ trigger.event.data.mode }})"
+          message: >-
+            {{ trigger.event.data.name }} /
+            {{ trigger.event.data.barcode }} —
+            {{ trigger.event.data.quantity }} {{ trigger.event.data.unit }}
+
+  - alias: MC40 list from home action
+    trigger:
+      - platform: event
+        event_type: mc40_list_select
+    condition:
+      - condition: template
+        value_template: "{{ trigger.event.data.list_id == 'pick_list' }}"
+    action:
+      - action: notify.mobile_app_mc40n0
+        data:
+          message: toast
+          data:
+            command: toast
+            message: "List {{ trigger.event.data.label }}"
+            level: ok
+            duration: short
+            beep: ok

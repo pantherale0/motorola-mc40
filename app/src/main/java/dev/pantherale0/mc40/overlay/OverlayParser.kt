@@ -19,8 +19,34 @@ object OverlayParser {
             "tts", "speak", "announce" -> OverlayAction.TTS
             "ui_config", "configure_ui" -> OverlayAction.UI_CONFIG
             "reinit", "reinitialize" -> OverlayAction.REINIT
+            "toast", "show_toast" -> OverlayAction.TOAST
+            "form", "show_form" -> OverlayAction.FORM
+            "list", "show_list", "picker" -> OverlayAction.LIST
+            "search", "show_search" -> OverlayAction.SEARCH
+            "search_results", "search_result" -> OverlayAction.SEARCH_RESULTS
+            "set_page", "page", "show_page" -> OverlayAction.SET_PAGE
             else -> if (!ttsText.isNullOrBlank()) OverlayAction.TTS else return null
         }
+        val toast = if (action == OverlayAction.TOAST) parseToast(event, data) else null
+        if (action == OverlayAction.TOAST && toast == null) return null
+        val form = if (action == OverlayAction.FORM) parseForm(data) else null
+        if (action == OverlayAction.FORM && form == null) return null
+        val list = when (action) {
+            OverlayAction.LIST -> parseList(data, requireItems = true)
+            OverlayAction.SEARCH_RESULTS -> parseList(data, requireItems = false)
+            else -> null
+        }
+        if (action == OverlayAction.LIST && list == null) return null
+        if (action == OverlayAction.SEARCH_RESULTS && list == null) return null
+        val search = if (action == OverlayAction.SEARCH) parseSearch(data) else null
+        if (action == OverlayAction.SEARCH && search == null) return null
+        val page = if (action == OverlayAction.SET_PAGE) {
+            string(data, "page", "id", "page_id")?.lowercase()?.take(32)
+        } else {
+            null
+        }
+        if (action == OverlayAction.SET_PAGE && page.isNullOrBlank()) return null
+
         val measure = when (string(data, "measure", "quantity_type")?.lowercase()) {
             "weight", "mass" -> Measure.WEIGHT
             else -> Measure.COUNT
@@ -35,6 +61,7 @@ object OverlayParser {
         return OverlayCommand(
             action = action,
             mode = modeValue(data),
+            page = page,
             name = string(data, "name", "title", "product") ?: "",
             barcode = string(data, "barcode", "code") ?: "",
             imageUrl = string(data, "image_url", "image", "picture") ?: "",
@@ -51,8 +78,150 @@ object OverlayParser {
             ttsVolume = volumeValue(data),
             ttsStream = TtsPlayer.streamFrom(string(data, "stream", "media_stream")),
             ttsLanguage = string(data, "language", "lang", "locale"),
-            uiConfig = if (action == OverlayAction.UI_CONFIG) UiConfigParser.parse(data) else null
+            uiConfig = if (action == OverlayAction.UI_CONFIG) UiConfigParser.parse(data) else null,
+            toast = toast,
+            form = form,
+            list = list,
+            search = search
         )
+    }
+
+    private fun parseToast(event: JsonObject, data: JsonObject): ToastPayload? {
+        val message = string(data, "message", "text")
+            ?: run {
+                val top = event.get("message")?.takeIf { it.isJsonPrimitive }?.asString?.trim().orEmpty()
+                if (top.isNotEmpty() && top.lowercase() !in TOAST_COMMANDS) top else null
+            }
+            ?: return null
+        val clipped = message.take(MAX_TOAST_LENGTH)
+        if (clipped.isEmpty()) return null
+        val level = when (string(data, "level", "severity")?.lowercase()) {
+            ToastPayload.LEVEL_OK, "success", "green" -> ToastPayload.LEVEL_OK
+            ToastPayload.LEVEL_ERROR, "fail", "failure", "red" -> ToastPayload.LEVEL_ERROR
+            else -> ToastPayload.LEVEL_INFO
+        }
+        val durationLong = when (string(data, "duration")?.lowercase()) {
+            "long" -> true
+            "short" -> false
+            else -> number(data, "duration")?.let { it >= 3.0 } ?: false
+        }
+        return ToastPayload(clipped, level, durationLong)
+    }
+
+    private fun parseForm(data: JsonObject): FormPayload? {
+        val id = string(data, "id", "form_id")?.take(MAX_ID_LENGTH) ?: return null
+        val title = string(data, "title", "name")?.take(MAX_TITLE_LENGTH) ?: id
+        val fields = formFields(data).take(MAX_FORM_FIELDS)
+        if (fields.isEmpty()) return null
+        return FormPayload(
+            id = id,
+            title = title,
+            fields = fields,
+            confirmLabel = string(data, "confirm_label", "confirm")?.take(MAX_LABEL_LENGTH) ?: "Confirm",
+            cancelLabel = string(data, "cancel_label", "cancel", "dismiss_label")?.take(MAX_LABEL_LENGTH)
+                ?: "Dismiss",
+            timeoutSec = number(data, "timeout")?.toInt()?.takeIf { it > 0 }
+        )
+    }
+
+    private fun formFields(data: JsonObject): List<FormField> {
+        val array = data.get("fields")?.takeIf { it.isJsonArray }?.asJsonArray ?: return emptyList()
+        return array.mapNotNull { element ->
+            val obj = element.takeIf { it.isJsonObject }?.asJsonObject ?: return@mapNotNull null
+            val id = string(obj, "id")?.take(MAX_ID_LENGTH) ?: return@mapNotNull null
+            val label = string(obj, "label", "name")?.take(MAX_LABEL_LENGTH) ?: id
+            val type = formFieldType(string(obj, "type"))
+            val options = if (type == FormField.TYPE_SELECT) {
+                formOptions(obj).take(MAX_SELECT_OPTIONS)
+            } else {
+                emptyList()
+            }
+            if (type == FormField.TYPE_SELECT && options.isEmpty()) return@mapNotNull null
+            val value = when (type) {
+                FormField.TYPE_TOGGLE -> if (flag(obj, "value", "default") == true) "true" else "false"
+                else -> string(obj, "value", "default")?.take(MAX_FIELD_VALUE) ?: ""
+            }
+            FormField(
+                id = id,
+                label = label,
+                type = type,
+                value = value,
+                placeholder = string(obj, "placeholder", "hint")?.take(MAX_LABEL_LENGTH) ?: "",
+                options = options
+            )
+        }.distinctBy { it.id }
+    }
+
+    private fun formFieldType(raw: String?): String {
+        return when (raw?.lowercase()) {
+            FormField.TYPE_NUMBER, "int", "integer", "decimal", "float" -> FormField.TYPE_NUMBER
+            FormField.TYPE_TOGGLE, "boolean", "switch", "checkbox", "bool" -> FormField.TYPE_TOGGLE
+            FormField.TYPE_SELECT, "dropdown", "choice" -> FormField.TYPE_SELECT
+            FormField.TYPE_BARCODE, "scan", "code" -> FormField.TYPE_BARCODE
+            else -> FormField.TYPE_TEXT
+        }
+    }
+
+    private fun formOptions(obj: JsonObject): List<FormOption> {
+        val array = obj.get("options")?.takeIf { it.isJsonArray }?.asJsonArray ?: return emptyList()
+        return array.mapNotNull { element ->
+            when {
+                element.isJsonObject -> {
+                    val option = element.asJsonObject
+                    val id = string(option, "id", "value")?.take(MAX_ID_LENGTH) ?: return@mapNotNull null
+                    val label = string(option, "label", "name")?.take(MAX_LABEL_LENGTH) ?: id
+                    FormOption(id, label)
+                }
+                element.isJsonPrimitive -> {
+                    val text = element.asString.trim()
+                    if (text.isEmpty()) return@mapNotNull null
+                    val clipped = text.take(MAX_ID_LENGTH)
+                    FormOption(clipped, clipped.take(MAX_LABEL_LENGTH))
+                }
+                else -> null
+            }
+        }.distinctBy { it.id }
+    }
+
+    private fun parseList(data: JsonObject, requireItems: Boolean): ListPayload? {
+        val id = string(data, "id", "list_id", "search_id")?.take(MAX_ID_LENGTH) ?: return null
+        val title = string(data, "title", "name")?.take(MAX_TITLE_LENGTH) ?: id
+        val items = listItems(data).take(MAX_LIST_ITEMS)
+        if (requireItems && items.isEmpty()) return null
+        val filter = flag(data, "filter") ?: true
+        return ListPayload(
+            id = id,
+            title = title,
+            items = items,
+            filter = filter,
+            timeoutSec = number(data, "timeout")?.toInt()?.takeIf { it > 0 }
+        )
+    }
+
+    private fun parseSearch(data: JsonObject): SearchPayload? {
+        val id = string(data, "id", "search_id")?.take(MAX_ID_LENGTH) ?: return null
+        val title = string(data, "title", "name")?.take(MAX_TITLE_LENGTH) ?: id
+        return SearchPayload(
+            id = id,
+            title = title,
+            placeholder = string(data, "placeholder", "hint")?.take(MAX_LABEL_LENGTH) ?: "",
+            query = string(data, "query", "q", "text")?.take(MAX_FIELD_VALUE) ?: "",
+            timeoutSec = number(data, "timeout")?.toInt()?.takeIf { it > 0 }
+        )
+    }
+
+    private fun listItems(data: JsonObject): List<ListItem> {
+        val array = data.get("items")?.takeIf { it.isJsonArray }?.asJsonArray ?: return emptyList()
+        return array.mapNotNull { element ->
+            val obj = element.takeIf { it.isJsonObject }?.asJsonObject ?: return@mapNotNull null
+            val id = string(obj, "id")?.take(MAX_ID_LENGTH) ?: return@mapNotNull null
+            val label = string(obj, "label", "name", "title")?.take(MAX_LABEL_LENGTH) ?: id
+            ListItem(
+                id = id,
+                label = label,
+                subtitle = string(obj, "subtitle", "description", "detail")?.take(MAX_LABEL_LENGTH) ?: ""
+            )
+        }.distinctBy { it.id }
     }
 
     private fun modeValue(data: JsonObject): String? {
@@ -173,4 +342,15 @@ object OverlayParser {
         }
         return null
     }
+
+    private val TOAST_COMMANDS = setOf("toast", "show_toast")
+
+    private const val MAX_TOAST_LENGTH = 120
+    private const val MAX_ID_LENGTH = 64
+    private const val MAX_TITLE_LENGTH = 80
+    private const val MAX_LABEL_LENGTH = 40
+    private const val MAX_FIELD_VALUE = 200
+    private const val MAX_FORM_FIELDS = 4
+    private const val MAX_SELECT_OPTIONS = 20
+    private const val MAX_LIST_ITEMS = 40
 }

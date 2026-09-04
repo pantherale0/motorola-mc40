@@ -1,0 +1,59 @@
+# Example schema 3 pages (nested form). The configuration blueprint uses
+# flattened page_/widget_ inputs that the app also accepts.
+#
+# action: notify.mobile_app_mc40n0
+# data:
+#   message: ui_config
+#   data:  # paste the object below under data:
+
+command: ui_config
+schema: 3
+default: use
+default_page: home
+slots:
+  - id: use
+    label: Use
+    behavior: use
+  - id: shopping
+    label: Shopping
+    behavior: shopping
+pages:
+  - id: home
+    label: Home
+    widgets:
+      - type: text
+        id: hint
+        label: Scan a product barcode
+      - type: button
+        id: products
+        label: Search
+        kind: search
+      - type: button
+        id: note
+        label: Note
+        kind: event
+      - type: nav
+        id: to_lists
+        label: Lists →
+        page: lists
+  - id: lists
+    label: Lists
+    widgets:
+      - type: nav
+        id: back
+        label: ← Home
+        page: home
+      - type: button
+        id: pick_list
+        label: Pick list
+        kind: event
+
+# Navigate remotely:
+# action: notify.mobile_app_mc40n0
+# data:
+#   message: set_page
+#   data:
+#     command: set_page
+#     page: lists
+#
+# Device fires mc40_page_changed when the page changes (nav widget or set_page).

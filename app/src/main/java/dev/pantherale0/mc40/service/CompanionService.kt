@@ -13,12 +13,15 @@ import dev.pantherale0.mc40.R
 import dev.pantherale0.mc40.device.ProximityMonitor
 import dev.pantherale0.mc40.hw.ButtonBus
 import dev.pantherale0.mc40.overlay.FeedbackPlayer
+import dev.pantherale0.mc40.overlay.FormScanGate
 import dev.pantherale0.mc40.overlay.ModeBus
 import dev.pantherale0.mc40.overlay.OverlayAction
 import dev.pantherale0.mc40.overlay.OverlayBus
 import dev.pantherale0.mc40.overlay.TtsPlayer
 import dev.pantherale0.mc40.overlay.UiConfig
 import dev.pantherale0.mc40.overlay.UiConfigBus
+import dev.pantherale0.mc40.overlay.UiConfigParser
+import dev.pantherale0.mc40.overlay.UiConfigWriter
 import dev.pantherale0.mc40.overlay.UiInitStage
 import dev.pantherale0.mc40.ha.HaApi
 import dev.pantherale0.mc40.ha.NotifySocket
@@ -43,6 +46,8 @@ class CompanionService : Service() {
     private lateinit var idle: IdlePowerController
     private var poll: ScheduledFuture<*>? = null
     private var initRetry: ScheduledFuture<*>? = null
+    /** One soft mc40_boot after restoring ui_config from disk; cleared after fire or reinit. */
+    private var softBootPending = false
 
     private val dropNotify = Runnable {
         if (!idle.interactive && UiConfigBus.isReady) {
@@ -96,10 +101,11 @@ class CompanionService : Service() {
         api = HaApi(Mc40App.instance.prefs)
         sensors = SensorPublisher(api, Mc40App.instance.prefs)
         notify = NotifySocket(Mc40App.instance.prefs) { subscribed ->
-            if (subscribed && !UiConfigBus.isReady) {
+            if (!subscribed) return@NotifySocket
+            if (!UiConfigBus.isReady) {
                 UiConfigBus.updateStage(UiInitStage.NOTIFY_CONNECTED)
-                executor.execute { startUiHandshake() }
             }
+            executor.execute { startUiHandshake() }
         }
         feedback = FeedbackPlayer(this)
         TtsPlayer.onReady = { ready ->
@@ -130,7 +136,7 @@ class CompanionService : Service() {
         startForeground(NOTIF_ID, notification())
         idle.start()
         if (Mc40App.instance.prefs.isRegistered) {
-            UiConfigBus.begin()
+            restoreOrBeginUiConfig()
         }
         if (idle.interactive) {
             proximity.start()
@@ -249,6 +255,7 @@ class CompanionService : Service() {
     private fun onScan(result: ScanResult) {
         val prefs = Mc40App.instance.prefs
         if (!prefs.isRegistered || prefs.setupScanMode || !UiConfigBus.isReady) return
+        if (FormScanGate.consumeScans) return
         wakeNotifyBriefly()
         runIo {
             runCatching {
@@ -260,8 +267,26 @@ class CompanionService : Service() {
         }
     }
 
+    private fun restoreOrBeginUiConfig() {
+        val cached = UiConfigParser.parseJson(Mc40App.instance.prefs.uiConfigJson)
+        if (cached != null) {
+            softBootPending = true
+            applyUiConfig(cached, fromCache = true)
+        } else {
+            softBootPending = false
+            UiConfigBus.begin()
+        }
+    }
+
     private fun startUiHandshake() {
-        if (!notify.isSubscribed || UiConfigBus.isReady) return
+        if (!notify.isSubscribed) return
+        if (UiConfigBus.isReady) {
+            if (softBootPending) {
+                softBootPending = false
+                sensors.publishBoot("start")
+            }
+            return
+        }
         stopUiHandshake()
         sensors.publishBoot("start")
         UiConfigBus.updateStage(UiInitStage.WAITING_FOR_BLUEPRINT)
@@ -277,9 +302,9 @@ class CompanionService : Service() {
         initRetry = null
     }
 
-    private fun applyUiConfig(config: UiConfig) {
+    private fun applyUiConfig(config: UiConfig, fromCache: Boolean = false) {
         val firstApply = !UiConfigBus.isReady
-        if (firstApply) {
+        if (firstApply && !fromCache) {
             UiConfigBus.updateStage(UiInitStage.APPLYING)
         }
         val prefs = Mc40App.instance.prefs
@@ -288,15 +313,18 @@ class CompanionService : Service() {
         }
         stopUiHandshake()
         UiConfigBus.apply(config)
+        if (!fromCache) {
+            prefs.uiConfigJson = UiConfigWriter.toJson(config).toString()
+        }
         if (!idle.interactive) {
             notify.disconnect()
         }
         executor.execute {
             sensors.publishMode()
-            // Only the first successful init reports complete. Live re-pushes
-            // (automation reload / HA start) must not fire mc40_boot again or
-            // the configuration blueprint would loop on every reply.
-            if (firstApply) {
+            // Only the first successful HA-driven init reports complete. Cache
+            // restore and live re-pushes must not fire mc40_boot again or the
+            // configuration blueprint would loop on every reply.
+            if (firstApply && !fromCache) {
                 sensors.publishBoot("complete")
             }
         }
@@ -304,6 +332,8 @@ class CompanionService : Service() {
 
     private fun restartUiInit() {
         stopUiHandshake()
+        softBootPending = false
+        Mc40App.instance.prefs.clearUiConfig()
         UiConfigBus.begin()
         notify.ensureConnected()
         if (notify.isSubscribed) {

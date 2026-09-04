@@ -27,6 +27,13 @@
     <string name="btn_plus">+</string>
     <string name="btn_confirm">Confirm</string>
     <string name="btn_dismiss">Dismiss</string>
+    <string name="hint_list_filter">Filter…</string>
+    <string name="hint_search">Search…</string>
+    <string name="btn_search">Search</string>
+    <string name="list_empty">No matching items</string>
+    <string name="search_waiting">Enter a query and tap Search</string>
+    <string name="search_loading">Searching…</string>
+    <string name="search_empty_query">Enter a search query</string>
     <string name="image_placeholder">No image</string>
     <string name="qty_format">%1$s %2$s</string>
 </resources>

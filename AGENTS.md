@@ -27,4 +27,4 @@ Profile is created at runtime with `SET_CONFIG` / `CREATE_IF_NOT_EXIST`. Intent 
 - Validate with `GET /api/config` (Bearer token).
 - Register with `POST /api/mobile_app/registrations`.
 - Sensors and events via webhook `/api/webhook/{webhook_id}`.
-- Notifications via WebSocket `mobile_app/push_notification_channel` (`push_websocket_channel: true`). Overlay, mode, dismiss, and feedback (`beep` / `vibrate` / `led`) are handled in-app.
+- Notifications via WebSocket `mobile_app/push_notification_channel` (`push_websocket_channel: true`). Overlay, form, list, search, toast, mode, dismiss, and feedback (`beep` / `vibrate` / `led`) are handled in-app.

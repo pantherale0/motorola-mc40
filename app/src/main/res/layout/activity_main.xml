@@ -148,6 +148,32 @@
                     android:orientation="vertical" />
 
                 <TextView
+                    android:id="@+id/pageHeader"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="12dp"
+                    android:textColor="@color/text"
+                    android:textSize="16sp"
+                    android:textStyle="bold"
+                    android:visibility="gone" />
+
+                <LinearLayout
+                    android:id="@+id/pageContainer"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="8dp"
+                    android:orientation="vertical"
+                    android:visibility="gone" />
+
+                <LinearLayout
+                    android:id="@+id/actionContainer"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="4dp"
+                    android:orientation="vertical"
+                    android:visibility="gone" />
+
+                <TextView
                     android:id="@+id/lastBarcode"
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
@@ -329,6 +355,226 @@
                     android:text="@string/btn_dismiss" />
             </LinearLayout>
         </ScrollView>
+    </FrameLayout>
+
+    <FrameLayout
+        android:id="@+id/formOverlay"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:background="@color/overlay_scrim"
+        android:clickable="true"
+        android:focusable="false"
+        android:visibility="gone">
+
+        <ScrollView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_gravity="center"
+            android:layout_margin="16dp"
+            android:fillViewport="false">
+
+            <LinearLayout
+                android:id="@+id/formCard"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:background="@drawable/card_bg"
+                android:clickable="true"
+                android:focusable="false"
+                android:orientation="vertical"
+                android:padding="12dp">
+
+                <TextView
+                    android:id="@+id/formTitle"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:gravity="center"
+                    android:textColor="@color/text"
+                    android:textSize="18sp"
+                    android:textStyle="bold" />
+
+                <LinearLayout
+                    android:id="@+id/formFields"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="8dp"
+                    android:orientation="vertical" />
+
+                <Button
+                    android:id="@+id/formConfirmButton"
+                    android:layout_width="match_parent"
+                    android:layout_height="52dp"
+                    android:layout_marginTop="12dp"
+                    android:text="@string/btn_confirm" />
+
+                <Button
+                    android:id="@+id/formCancelButton"
+                    android:layout_width="match_parent"
+                    android:layout_height="48dp"
+                    android:layout_marginTop="4dp"
+                    android:text="@string/btn_dismiss" />
+            </LinearLayout>
+        </ScrollView>
+    </FrameLayout>
+
+    <FrameLayout
+        android:id="@+id/listOverlay"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:background="@color/overlay_scrim"
+        android:clickable="true"
+        android:focusable="false"
+        android:visibility="gone">
+
+        <LinearLayout
+            android:id="@+id/listCard"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:layout_margin="16dp"
+            android:background="@drawable/card_bg"
+            android:clickable="true"
+            android:focusable="false"
+            android:orientation="vertical"
+            android:padding="12dp">
+
+            <TextView
+                android:id="@+id/listTitle"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:gravity="center"
+                android:textColor="@color/text"
+                android:textSize="18sp"
+                android:textStyle="bold" />
+
+            <EditText
+                android:id="@+id/listFilter"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="8dp"
+                android:background="@drawable/edit_bg"
+                android:hint="@string/hint_list_filter"
+                android:imeOptions="actionDone"
+                android:importantForAutofill="no"
+                android:inputType="text"
+                android:maxLines="1"
+                android:padding="10dp"
+                android:textColor="@color/text"
+                android:textColorHint="@color/text_dim" />
+
+            <TextView
+                android:id="@+id/listEmpty"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="12dp"
+                android:gravity="center"
+                android:text="@string/list_empty"
+                android:textColor="@color/text_dim"
+                android:visibility="gone" />
+
+            <ScrollView
+                android:layout_width="match_parent"
+                android:layout_height="0dp"
+                android:layout_marginTop="8dp"
+                android:layout_weight="1"
+                android:fillViewport="true">
+
+                <LinearLayout
+                    android:id="@+id/listItems"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="vertical" />
+            </ScrollView>
+
+            <Button
+                android:id="@+id/listCancelButton"
+                android:layout_width="match_parent"
+                android:layout_height="48dp"
+                android:layout_marginTop="8dp"
+                android:text="@string/btn_dismiss" />
+        </LinearLayout>
+    </FrameLayout>
+
+    <FrameLayout
+        android:id="@+id/searchOverlay"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:background="@color/overlay_scrim"
+        android:clickable="true"
+        android:focusable="false"
+        android:visibility="gone">
+
+        <LinearLayout
+            android:id="@+id/searchCard"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:layout_margin="16dp"
+            android:background="@drawable/card_bg"
+            android:clickable="true"
+            android:focusable="false"
+            android:orientation="vertical"
+            android:padding="12dp">
+
+            <TextView
+                android:id="@+id/searchTitle"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:gravity="center"
+                android:textColor="@color/text"
+                android:textSize="18sp"
+                android:textStyle="bold" />
+
+            <EditText
+                android:id="@+id/searchQuery"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="8dp"
+                android:background="@drawable/edit_bg"
+                android:hint="@string/hint_search"
+                android:imeOptions="actionSearch"
+                android:importantForAutofill="no"
+                android:inputType="text"
+                android:maxLines="1"
+                android:padding="10dp"
+                android:textColor="@color/text"
+                android:textColorHint="@color/text_dim" />
+
+            <Button
+                android:id="@+id/searchSubmitButton"
+                android:layout_width="match_parent"
+                android:layout_height="48dp"
+                android:layout_marginTop="8dp"
+                android:text="@string/btn_search" />
+
+            <TextView
+                android:id="@+id/searchStatus"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="8dp"
+                android:gravity="center"
+                android:text="@string/search_waiting"
+                android:textColor="@color/text_dim"
+                android:textSize="14sp" />
+
+            <ScrollView
+                android:layout_width="match_parent"
+                android:layout_height="0dp"
+                android:layout_marginTop="8dp"
+                android:layout_weight="1"
+                android:fillViewport="true">
+
+                <LinearLayout
+                    android:id="@+id/searchItems"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="vertical" />
+            </ScrollView>
+
+            <Button
+                android:id="@+id/searchCancelButton"
+                android:layout_width="match_parent"
+                android:layout_height="48dp"
+                android:layout_marginTop="8dp"
+                android:text="@string/btn_dismiss" />
+        </LinearLayout>
     </FrameLayout>
 
     <View

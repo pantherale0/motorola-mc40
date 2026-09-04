@@ -9,15 +9,15 @@ flowchart LR
   trigger[Side scan / PTT] --> app[MC40 Companion]
   app -->|fire_event / sensors| ha[Home Assistant webhook]
   ha -->|notify data.command| ws[WebSocket push]
-  ws --> overlay[Product overlay / feedback]
-  overlay -->|Confirm| ha
+  ws --> overlay[Overlay / form / list / search / toast]
+  overlay -->|Confirm / select / search| ha
 ```
 
 ## Process
 
 | Component | Role |
 |-----------|------|
-| `MainActivity` | Setup + init progress + dynamic scanner UI, overlay, quantity, hardware keys, LED bar |
+| `MainActivity` | Setup + init progress + dynamic scanner UI, overlay/form/list/search, quantity, hardware keys, LED bar |
 | `CompanionService` | Foreground service: boot/config handshake, sensors, notify socket, scan/button/proximity publish, beep/vibrate/LED |
 | `ScanReceiver` | Broadcast `dev.pantherale0.mc40.SCAN` and DataWedge result intents |
 | `NotifySocket` | HA websocket `mobile_app/push_notification_channel` |
@@ -25,7 +25,7 @@ flowchart LR
 | `SensorPublisher` | `register_sensor`, `update_sensor_states`, `fire_event` |
 | `DataWedgeManager` | Profile **MC40HA**, soft scan, switch-to-profile |
 | `OverlayParser` / `OverlayBus` | Notify `data.command` → UI + `FeedbackPlayer` |
-| `UiConfigParser` / `UiConfigBus` | Validate schema 1 mode slots and keep the process-lifetime home config |
+| `UiConfigParser` / `UiConfigWriter` / `UiConfigBus` | Validate schema 1–3, persist last config, keep home config state |
 | `ProximityMonitor` | `close` / `far` |
 | `IdlePowerController` | `SCREEN_OFF` / `SCREEN_ON`: close notify socket, 10-minute wakeup alarm for diagnostics |
 
@@ -37,9 +37,9 @@ In-process buses (`ScanBus`, `OverlayBus`, `ModeBus`, `ButtonBus`) hop to the ma
 2. Sensors register and the local-push WebSocket subscribes.
 3. The service fires `mc40_boot` with `step: start`, then `timeout` every 10 seconds.
 4. The required HA blueprint sends notify `command: ui_config`.
-5. The app validates one to four slots, selects the configured default if needed, renders the home screen, and fires `mc40_boot` with `step: complete` once. The blueprint ignores `complete` so live re-pushes cannot loop.
+5. The app validates one to four slots (optional actions or schema 3 pages/widgets), selects the configured default if needed, renders the home screen, persists the config to SharedPreferences, and fires `mc40_boot` with `step: complete` once. The blueprint ignores `complete` so live re-pushes cannot loop.
 
-The config is deliberately not persisted. Process restart or notify `command: reinit` repeats initialization. Until ready, scan publication and product overlays are gated. The notify socket is kept alive even if the screen turns off while configuration is required.
+On a later process start, a valid cached `ui_config` is restored immediately (scans and home UI work without waiting on HA). When the notify socket subscribes, the app fires a one-shot soft `mc40_boot` `step: start` (no timeout loop) so HA can refresh the cache. Notify `command: reinit` or unregister clears the cache and repeats a full handshake. Until ready (no cache and no HA reply), scan publication and product overlays are gated. The notify socket is kept alive even if the screen turns off while configuration is required.
 
 ## Scan path
 
@@ -47,8 +47,8 @@ The config is deliberately not persisted. Process restart or notify `command: re
 2. `ScanBus` (debounced) → UI shows last barcode; service `publishScan`
 3. Webhook: update `last_barcode` + event `mc40_barcode_scanned` (`mode` included)
 4. If mode is shopping: also `mc40_shopping_add` qty 1
-5. HA automation may `notify` overlay / feedback
-6. Confirm → `mc40_stock_adjust` or `mc40_shopping_add`
+5. HA automation may `notify` overlay / form / list / search / toast / feedback
+6. Confirm → `mc40_stock_adjust` or `mc40_shopping_add` (product overlay); form/list/search → `mc40_form_*` / `mc40_list_*` / `mc40_search`
 
 Setup scans (unregistered or “Scan token QR”) fill URL/token instead of firing grocery events.
 

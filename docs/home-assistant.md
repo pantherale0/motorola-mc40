@@ -17,13 +17,25 @@ The notify target is typically `notify.mobile_app_mc40n0`. The suffix follows th
 
 Import [`mc40_configuration.yaml`](../homeassistant/blueprints/mc40_configuration.yaml), create one automation from it, and select the MC40 `mobile_app` device. The app intentionally stays on its welcome/progress screen until this automation returns at least one mode slot.
 
-The device fires `mc40_boot` after its local-push WebSocket subscribes. The blueprint responds with `command: ui_config` only for `step: start` or `step: timeout` (not `complete`). The configuration is cached only for the life of the app process; an app restart or `command: reinit` requests it again. The device retries the boot event every 10 seconds while waiting.
+The device fires `mc40_boot` after its local-push WebSocket subscribes (advertising `schema: 3`). The blueprint responds with `command: ui_config` only for `step: start` or `step: timeout` (not `complete`). The last valid configuration is persisted on the device and restored on process restart so the home UI works offline from HA; a soft `mc40_boot` `start` still refreshes it when notify reconnects. `command: reinit` (or unregister) clears the cache and runs a full handshake again. Without a cache, the device retries the boot event every 10 seconds while waiting.
 
-Up to four slots can be configured. Each has:
+Up to four **mode slots** can be configured. Each has:
 
 - **ID** — value sent as `event_data.mode` and exposed by `sensor.scanner_mode`
 - **Label** — text shown on the home-screen button
-- **Behavior** — `use` or `shopping`; controls immediate shopping events and overlay confirmation
+- **Behavior** — `use`, `shopping`, or `custom` (schema 2)
+
+| Behavior | On scan | Overlay confirm |
+|----------|---------|-----------------|
+| `use` | `mc40_barcode_scanned` | `mc40_stock_adjust` |
+| `shopping` | barcode + `mc40_shopping_add` qty 1 | `mc40_shopping_add` |
+| `custom` | `mc40_barcode_scanned` only | `mc40_mode_confirm` |
+
+Schema 2 also supports up to four **home actions** (id + label + kind). Kind `event` (default) fires `mc40_home_action`; kind `search` opens the on-device search UI.
+
+Schema 3 adds up to three **pages** with per-page **widgets** (`text`, `button`, `nav`). Mode slots stay sticky above the current page. When pages are present, top-level actions are ignored. Navigate with `nav` widgets or notify `set_page`. Example: [`homeassistant/examples/pages.yaml`](../homeassistant/examples/pages.yaml).
+
+The configuration blueprint can run an optional **search script** on `mc40_search` and push `search_results` back. Schema 1 payloads are still accepted (actions ignored; `custom` coerced to `use`).
 
 ## Sensors
 
@@ -58,7 +70,7 @@ Requests home-screen configuration after local push connects.
 |-------|---------|
 | `device_id` | `MC40N0` |
 | `app_version` | `1.0.0` |
-| `schema` | `1` |
+| `schema` | `3` (max schema the app supports) |
 | `step` | `start` / `timeout` request config; `complete` acknowledges first successful apply (does not re-trigger the blueprint) |
 
 ### `mc40_barcode_scanned`
@@ -72,11 +84,11 @@ Every grocery scan (not setup QR).
 | `source` | `"scanner"` / `"datawedge"` |
 | `device_id` | `MC40N0` |
 | `scanned_at` | ISO-8601 UTC |
-| `mode` | `use` or `shopping` |
+| `mode` | Configured slot ID |
 
 ### `mc40_stock_adjust`
 
-Confirm on the overlay while in **Use**. Quantity is the amount to consume/remove.
+Confirm on the overlay while in a **Use** behavior slot. Quantity is the amount to consume/remove.
 
 | Field | Example |
 |-------|---------|
@@ -96,6 +108,50 @@ Confirm on the overlay while in **Use**. Quantity is the amount to consume/remov
 
 Same field shape as stock adjust; `mode` is the configured slot ID, e.g. `shopping`.
 
+### `mc40_mode_confirm`
+
+Confirm on the overlay while in a **Custom** behavior slot. Same field shape as stock adjust; map it in automations however you like.
+
+### `mc40_home_action`
+
+Tap a configured home action button with kind `event` (schema 2). Does not change mode.
+
+| Field | Example |
+|-------|---------|
+| `action_id` | `lists` |
+| `label` | `Lists` |
+| `mode` | Current scanner mode |
+| `device_id` | `MC40N0` |
+| `pressed_at` | ISO-8601 UTC |
+
+Example wiring: [`homeassistant/examples/home_actions.yaml`](../homeassistant/examples/home_actions.yaml).
+
+### `mc40_search`
+
+User submitted a query in the on-device search UI (home action kind `search`, or notify `command: search`).
+
+| Field | Example |
+|-------|---------|
+| `search_id` | `products` |
+| `query` | `flour` |
+| `mode` | Current scanner mode |
+| `device_id` | `MC40N0` |
+| `searched_at` | ISO-8601 UTC |
+
+The configuration blueprint calls the optional search script with these fields and expects `{ items: [...] }` via `response_variable`, then notifies `search_results`. Example script: [`homeassistant/examples/search_script.yaml`](../homeassistant/examples/search_script.yaml).
+
+### `mc40_page_changed`
+
+Fired when the user navigates via a `nav` widget or HA sends `set_page`.
+
+| Field | Example |
+|-------|---------|
+| `page_id` | `lists` |
+| `label` | `Lists` |
+| `mode` | Current scanner mode |
+| `device_id` | `MC40N0` |
+| `changed_at` | ISO-8601 UTC |
+
 ### `mc40_button_pressed`
 
 Hardware **PTT** (above the left scan trigger). Headset hook may arrive as `button: headset`.
@@ -108,6 +164,28 @@ Hardware **PTT** (above the left scan trigger). Headset hook may arrive as `butt
 | `mode` | `use` or `shopping` |
 | `device_id` | `MC40N0` |
 | `pressed_at` | ISO-8601 UTC |
+
+### `mc40_form_submit` / `mc40_form_cancel`
+
+Fired when the user confirms or dismisses a notify `form` card.
+
+| Field | Submit | Cancel |
+|-------|--------|--------|
+| `form_id` | yes | yes |
+| `values` | map of field id → string | — |
+| `reason` | — | `dismiss` or `timeout` |
+| `mode` / `device_id` | yes | yes |
+
+### `mc40_list_select` / `mc40_list_cancel`
+
+Fired when the user picks an item or dismisses a notify `list` picker.
+
+| Field | Select | Cancel |
+|-------|--------|--------|
+| `list_id` | yes | yes |
+| `item_id` / `label` | yes | — |
+| `reason` | — | `dismiss` or `timeout` |
+| `mode` / `device_id` | yes | yes |
 
 ## Notify commands
 
@@ -160,20 +238,118 @@ data:
     led_duration: 2
 ```
 
+### `toast`
+
+Structured status toast (preferred over relying on unrecognized notifies).
+
+| Field | Required | Notes |
+|-------|----------|--------|
+| `message` / `text` | yes | Max 120 characters |
+| `level` | no | `info` (default), `ok`, `error` |
+| `duration` | no | `short` (default) or `long` |
+| `beep` / `led` / … | no | Same as feedback |
+
+```yaml
+action: notify.mobile_app_mc40n0
+data:
+  message: toast
+  data:
+    command: toast
+    message: Lookup failed
+    level: error
+    duration: short
+    beep: error
+```
+
+### `form`
+
+Modal with up to four fields. Confirm fires `mc40_form_submit` (`values` is a string map); dismiss/timeout fires `mc40_form_cancel`.
+
+| Field | Required | Notes |
+|-------|----------|--------|
+| `id` | yes | Correlation id (`form_id` in events) |
+| `title` | no | Defaults to `id` |
+| `fields` | yes | See field types below |
+| `confirm_label` / `cancel_label` | no | Button text |
+| `timeout` | no | Seconds until auto-cancel |
+
+| Field `type` | Notes | Submit value |
+|--------------|-------|--------------|
+| `text` | `value?`, `placeholder?` | trimmed string |
+| `number` | same | trimmed string |
+| `toggle` | aliases `boolean` / `switch` / `checkbox`; `value` true/false | `"true"` / `"false"` |
+| `select` | aliases `dropdown` / `choice`; requires `options` (up to 20 `{id,label}` or plain strings); empty options drop the field | selected option `id` |
+| `barcode` | aliases `scan` / `code`; hardware scans fill the focused (or first) barcode field and are **not** published as grocery events while the form is open | scanned / typed string |
+
+### `list` / `picker`
+
+Scrollable picker with optional on-device filter. Select fires `mc40_list_select`; dismiss/timeout fires `mc40_list_cancel`.
+
+| Field | Required | Notes |
+|-------|----------|--------|
+| `id` | yes | Correlation id (`list_id` in events) |
+| `title` | no | Defaults to `id` |
+| `items` | yes | Up to 40 `{ id, label, subtitle? }` |
+| `filter` | no | Default `true` — local filter EditText |
+| `timeout` | no | Seconds until auto-cancel |
+
+Examples: [`homeassistant/examples/dynamic_ui.yaml`](../homeassistant/examples/dynamic_ui.yaml).
+
+### `search` / `search_results`
+
+`search` opens the on-device search panel. Submit fires `mc40_search`. `search_results` refreshes items when `id` matches the open panel (empty list allowed). Selecting a row fires `mc40_list_select` with `list_id` = `search_id`.
+
+| Field | `search` | `search_results` |
+|-------|----------|------------------|
+| `id` | required | required (must match open search) |
+| `title` | optional | optional refresh |
+| `placeholder` | query hint | — |
+| `query` | optional prefill | — |
+| `items` | — | up to 40 `{ id, label, subtitle? }` |
+
+```yaml
+action: notify.mobile_app_mc40n0
+data:
+  message: search_results
+  data:
+    command: search_results
+    id: products
+    items:
+      - id: "200012570"
+        label: Plain flour
+        subtitle: 1 kg
+```
+
+If a `list` notify arrives while a search with the same `id` is open, it is treated as `search_results`.
+
+### `set_page`
+
+Switch the active home page (schema 3). `page` / `id` must match a configured page.
+
+```yaml
+action: notify.mobile_app_mc40n0
+data:
+  message: set_page
+  data:
+    command: set_page
+    page: lists
+```
+
 ### `set_mode`
 
 Set `mode` to any configured slot ID. The aliases `consume`, `shop`, and `list` map to `use`, `shopping`, and `shopping`.
 
 ### `ui_config` / `reinit`
 
-`ui_config` schema 1 defines one to four home-screen mode slots. The configuration blueprint sends it automatically in response to `mc40_boot`.
+`ui_config` schema 1–3 defines home-screen mode slots. Schema 2 may include home actions. Schema 3 may include pages and widgets. The configuration blueprint sends schema 3 automatically in response to `mc40_boot`.
 
 ```yaml
 message: ui_config
 data:
   command: ui_config
-  schema: 1
+  schema: 3
   default: use
+  default_page: home
   slots:
     - id: use
       label: Use
@@ -181,13 +357,28 @@ data:
     - id: shopping
       label: Shopping
       behavior: shopping
+  pages:
+    - id: home
+      label: Home
+      widgets:
+        - type: text
+          id: hint
+          label: Scan a product barcode
+        - type: button
+          id: products
+          label: Search
+          kind: search
+        - type: nav
+          id: to_lists
+          label: Lists →
+          page: lists
 ```
 
-Send `command: reinit` to discard the in-process configuration, return to the welcome screen, and request it again.
+Send `command: reinit` to discard the persisted configuration, return to the welcome screen, and request it again.
 
 ### `dismiss`
 
-Hide the product card.
+Hide the product card, form, list, or search panel.
 
 ### `feedback` / `beep` / `vibrate` / `led`
 
@@ -250,13 +441,21 @@ Copy [`homeassistant/blueprints/`](../homeassistant/blueprints/) into HA `config
 
 Stub YAML without a lookup: [`homeassistant/examples/overlay_after_scan.yaml`](../homeassistant/examples/overlay_after_scan.yaml).
 
+Toast / form / list examples: [`homeassistant/examples/dynamic_ui.yaml`](../homeassistant/examples/dynamic_ui.yaml).
+
+Home actions / custom mode: [`homeassistant/examples/home_actions.yaml`](../homeassistant/examples/home_actions.yaml).
+
+Search script (blueprint input): [`homeassistant/examples/search_script.yaml`](../homeassistant/examples/search_script.yaml).
+
+Multi-page home: [`homeassistant/examples/pages.yaml`](../homeassistant/examples/pages.yaml).
+
 **Use mode:** `mc40_barcode_scanned` (mode=use) → Open Food Facts (or Grocy) lookup → `notify` overlay → `mc40_stock_adjust` → pantry consume.
 
 **Shopping mode:** device already fires `mc40_shopping_add` on scan. Optionally send an overlay afterward if you want a quantity edit before adding.
 
-**PTT:** `mc40_button_pressed` → whatever you want (cancel overlay, toggle a light, announce).
+**PTT:** `mc40_button_pressed` → whatever you want (cancel overlay, toggle a light, announce, open a list picker).
 
-**Errors:** if lookup fails, notify `command: feedback` with `beep: error` and `led: red` (the Open Food Facts blueprint does this on the overlay notify).
+**Errors:** if lookup fails, notify `command: toast` or `command: feedback` with `beep: error` and `led: red` (the Open Food Facts blueprint does this on the overlay notify).
 
 ## Entity naming
 

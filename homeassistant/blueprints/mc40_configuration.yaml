@@ -596,8 +596,26 @@ blueprint:
       icon: mdi:form-select
       description: >
         Form and list/search picker results. Templates may use trigger.event.data.*.
+        On list show can set variable items; the blueprint then notifies list when
+        items is non-empty.
       collapsed: true
       input:
+        on_list_show:
+          name: On list show
+          description: >
+            Event: mc40_list_show (list/picker opened; not fired again when the
+            same list_id is refreshed with items).
+
+            Available: trigger.event.data.list_id, .title, .mode, .device_id,
+            .shown_at.
+
+            Run any actions, then set variable items to a list of
+            {id, label, subtitle?} to pre-populate. The blueprint notifies
+            command:list with that list when items is non-empty (leave empty
+            to keep items from the original notify).
+          default: []
+          selector:
+            action: {}
         on_list_select:
           name: On list / search select
           description: >
@@ -694,6 +712,9 @@ trigger:
     event_type: mc40_list_cancel
     id: list_cancel
   - platform: event
+    event_type: mc40_list_show
+    id: list_show
+  - platform: event
     event_type: mc40_form_submit
     id: form_submit
   - platform: event
@@ -723,8 +744,8 @@ condition:
            and trigger.event.data.step | default('') in ['start', 'timeout'] }}
       {% elif trigger.id in [
            'search', 'home_action', 'page_changed', 'list_select', 'list_cancel',
-           'form_submit', 'form_cancel', 'button_pressed', 'barcode_scanned',
-           'mode_confirm'
+           'list_show', 'form_submit', 'form_cancel', 'button_pressed',
+           'barcode_scanned', 'mode_confirm'
          ] %}
         {{ trigger.event.data.device_id | default('') == configured_device_id }}
       {% else %}
@@ -841,6 +862,25 @@ action:
           - condition: trigger
             id: page_changed
         sequence: !input on_page_changed
+      - conditions:
+          - condition: trigger
+            id: list_show
+        sequence:
+          - variables:
+              items: []
+          - sequence: !input on_list_show
+          - condition: template
+            value_template: "{{ items | default([]) | length > 0 }}"
+          - device_id: !input notify_device
+            domain: mobile_app
+            type: notify
+            message: list
+            data:
+              command: list
+              id: "{{ trigger.event.data.list_id }}"
+              title: "{{ trigger.event.data.title | default(trigger.event.data.list_id) }}"
+              # Device notify cannot carry nested lists reliably; send JSON text.
+              items: "{{ items | default([]) | to_json }}"
       - conditions:
           - condition: trigger
             id: list_select

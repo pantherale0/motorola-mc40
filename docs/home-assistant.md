@@ -35,7 +35,7 @@ Schema 2 also supports up to four **home actions** (id + label + kind). Kind `ev
 
 Schema 3 adds up to three **pages** with per-page **widgets** (`text`, `button`, `nav`). Mode slots stay sticky above the current page. When pages are present, top-level actions are ignored. Navigate with `nav` widgets or notify `set_page`. Example: [`homeassistant/examples/pages.yaml`](../homeassistant/examples/pages.yaml).
 
-The configuration blueprint can run an optional **On search** action chain on `mc40_search`. Those actions must set a variable named `items` (list of `{id, label, subtitle?}`); the blueprint then notifies `search_results`. It also accepts optional **action** sequences for home/page/button, form/list, and scan/inventory events (`mc40_barcode_scanned`, `mc40_mode_confirm`) — leave empty to ignore. Schema 1 payloads are still accepted (actions ignored; `custom` coerced to `use`).
+The configuration blueprint can run an optional **On search** action chain on `mc40_search`. Those actions must set a variable named `items` (list of `{id, label, subtitle?}`); the blueprint then notifies `search_results`. **On list show** (`mc40_list_show`) works the same way for an open list when `items` is non-empty. It also accepts optional **action** sequences for home/page/button, form/list, and scan/inventory events (`mc40_barcode_scanned`, `mc40_mode_confirm`) — leave empty to ignore. Schema 1 payloads are still accepted (actions ignored; `custom` coerced to `use`).
 
 ## Sensors
 
@@ -166,6 +166,20 @@ Fired when the user confirms or dismisses a notify `form` card.
 | `reason` | — | `dismiss` or `timeout` |
 | `mode` / `device_id` | yes | yes |
 
+### `mc40_list_show`
+
+Fired when a notify `list` / `picker` opens (new `list_id`). A follow-up `list` notify with the same `id` refreshes items and does **not** fire again.
+
+| Field | Example |
+|-------|---------|
+| `list_id` | `shopping` |
+| `title` | `Shopping list` |
+| `mode` | Current scanner mode |
+| `device_id` | `MC40N0` |
+| `shown_at` | ISO-8601 UTC |
+
+The configuration blueprint **On list show** can set variable `items` (same shape as search); when non-empty it notifies `command: list` to fill the open picker.
+
 ### `mc40_list_select` / `mc40_list_cancel`
 
 Fired when the user picks an item or dismisses a notify `list` picker.
@@ -275,15 +289,17 @@ Modal with up to four fields. Confirm fires `mc40_form_submit` (`values` is a st
 
 ### `list` / `picker`
 
-Scrollable picker with optional on-device filter. Select fires `mc40_list_select`; dismiss/timeout fires `mc40_list_cancel`.
+Scrollable picker with optional on-device filter. Opening fires `mc40_list_show` (once per new `id`). Select fires `mc40_list_select`; dismiss/timeout fires `mc40_list_cancel`.
 
 | Field | Required | Notes |
 |-------|----------|--------|
 | `id` | yes | Correlation id (`list_id` in events) |
 | `title` | no | Defaults to `id` |
-| `items` | yes | Up to 40 `{ id, label, subtitle? }` |
+| `items` | no | Up to 40 `{ id, label, subtitle? }`; omit/empty to open then fill via `mc40_list_show` |
 | `filter` | no | Default `true` — local filter EditText |
 | `timeout` | no | Seconds until auto-cancel |
+
+A second `list` notify with the same `id` while the picker is open refreshes rows without another `mc40_list_show`.
 
 Examples: [`homeassistant/examples/dynamic_ui.yaml`](../homeassistant/examples/dynamic_ui.yaml).
 

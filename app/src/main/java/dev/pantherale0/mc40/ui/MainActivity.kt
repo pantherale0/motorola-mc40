@@ -735,6 +735,8 @@ class MainActivity : AppCompatActivity() {
         val search = activeSearch
         if (search != null && search.id == payload.id) {
             applySearchResults(payload)
+        } else if (activeList?.id == payload.id) {
+            applyListItems(payload)
         } else {
             showList(payload)
         }
@@ -990,6 +992,47 @@ class MainActivity : AppCompatActivity() {
         } else {
             binding.wedgeCapture.requestFocus()
         }
+        val listId = payload.id
+        val title = payload.title
+        io.execute {
+            SensorPublisher(HaApi(Mc40App.instance.prefs), Mc40App.instance.prefs)
+                .publishListShow(listId, title)
+        }
+    }
+
+    private fun applyListItems(payload: ListPayload) {
+        val list = activeList ?: return
+        if (list.id != payload.id) return
+        activeList = list.copy(
+            title = if (payload.title.isNotBlank() && payload.title != payload.id) {
+                payload.title
+            } else {
+                list.title
+            },
+            items = payload.items,
+            filter = payload.filter,
+            timeoutSec = payload.timeoutSec ?: list.timeoutSec
+        )
+        val updated = activeList!!
+        if (updated.title.isNotBlank()) {
+            binding.listTitle.text = updated.title
+        }
+        binding.listFilter.visibility = if (updated.filter) View.VISIBLE else View.GONE
+        val query = binding.listFilter.text?.toString()?.trim().orEmpty()
+        val visible = if (!updated.filter || query.isEmpty()) {
+            updated.items
+        } else {
+            updated.items.filter { item ->
+                item.label.contains(query, ignoreCase = true) ||
+                    item.subtitle.contains(query, ignoreCase = true)
+            }
+        }
+        renderListItems(visible)
+        main.removeCallbacks(listTimeout)
+        updated.timeoutSec?.let { sec ->
+            main.postDelayed(listTimeout, sec * 1000L)
+        }
+        status(updated.title, error = false)
     }
 
     private fun wireListFilter() {

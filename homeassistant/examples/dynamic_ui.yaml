@@ -99,6 +99,9 @@ automation:
           title: "MC40 form {{ trigger.event.data.form_id }}"
           message: "{{ trigger.event.data.values }}"
 
+  # Open a list shell (no items). Wire configuration blueprint On list show to
+  # set variable items; the blueprint then notifies command:list to fill it.
+  # Or pass items inline here instead.
   - alias: MC40 pick shopping list on PTT
     trigger:
       - platform: event
@@ -116,14 +119,6 @@ automation:
             title: Shopping lists
             filter: true
             timeout: 45
-            items:
-              - id: groceries
-                label: Groceries
-                subtitle: Weekly shop
-              - id: hardware
-                label: Hardware
-              - id: pharmacy
-                label: Pharmacy
 
   - alias: MC40 list select
     trigger:

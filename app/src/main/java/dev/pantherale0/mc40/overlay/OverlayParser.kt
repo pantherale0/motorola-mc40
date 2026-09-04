@@ -32,7 +32,7 @@ object OverlayParser {
         val form = if (action == OverlayAction.FORM) parseForm(data) else null
         if (action == OverlayAction.FORM && form == null) return null
         val list = when (action) {
-            OverlayAction.LIST -> parseList(data, requireItems = true)
+            OverlayAction.LIST -> parseList(data, requireItems = false)
             OverlayAction.SEARCH_RESULTS -> parseList(data, requireItems = false)
             else -> null
         }

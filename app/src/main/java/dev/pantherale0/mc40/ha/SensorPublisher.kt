@@ -240,6 +240,20 @@ class SensorPublisher(
         fireRaw(event, "mc40_form_cancel")
     }
 
+    fun publishListShow(listId: String, title: String) {
+        val event = JsonObject().apply {
+            addProperty("event_type", "mc40_list_show")
+            add("event_data", JsonObject().apply {
+                addProperty("device_id", prefs.deviceName)
+                addProperty("list_id", listId)
+                addProperty("title", title)
+                addProperty("mode", prefs.scannerMode)
+                addProperty("shown_at", DeviceSensors.nowIso())
+            })
+        }
+        fireRaw(event, "mc40_list_show")
+    }
+
     fun publishListSelect(listId: String, itemId: String, label: String) {
         val event = JsonObject().apply {
             addProperty("event_type", "mc40_list_select")

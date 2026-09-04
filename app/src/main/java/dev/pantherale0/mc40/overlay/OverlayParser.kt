@@ -64,6 +64,7 @@ object OverlayParser {
             page = page,
             name = string(data, "name", "title", "product") ?: "",
             barcode = string(data, "barcode", "code") ?: "",
+            productId = string(data, "product_id", "item_id") ?: "",
             imageUrl = string(data, "image_url", "image", "picture") ?: "",
             measure = measure,
             unit = unit,

@@ -27,15 +27,15 @@ Up to four **mode slots** can be configured. Each has:
 
 | Behavior | On scan | Overlay confirm |
 |----------|---------|-----------------|
-| `use` | `mc40_barcode_scanned` | `mc40_stock_adjust` |
-| `shopping` | barcode + `mc40_shopping_add` qty 1 | `mc40_shopping_add` |
-| `custom` | `mc40_barcode_scanned` only | `mc40_mode_confirm` |
+| `use` | `mc40_barcode_scanned` | `mc40_mode_confirm` |
+| `shopping` | `mc40_barcode_scanned` | `mc40_mode_confirm` |
+| `custom` | `mc40_barcode_scanned` | `mc40_mode_confirm` |
 
 Schema 2 also supports up to four **home actions** (id + label + kind). Kind `event` (default) fires `mc40_home_action`; kind `search` opens the on-device search UI.
 
 Schema 3 adds up to three **pages** with per-page **widgets** (`text`, `button`, `nav`). Mode slots stay sticky above the current page. When pages are present, top-level actions are ignored. Navigate with `nav` widgets or notify `set_page`. Example: [`homeassistant/examples/pages.yaml`](../homeassistant/examples/pages.yaml).
 
-The configuration blueprint can run an optional **On search** action chain on `mc40_search`. Those actions must set a variable named `items` (list of `{id, label, subtitle?}`); the blueprint then notifies `search_results`. It also accepts optional **action** sequences for home/page/button, form/list, and scan/inventory events (`mc40_barcode_scanned`, `mc40_stock_adjust`, `mc40_shopping_add`, `mc40_mode_confirm`) — leave empty to ignore. Schema 1 payloads are still accepted (actions ignored; `custom` coerced to `use`).
+The configuration blueprint can run an optional **On search** action chain on `mc40_search`. Those actions must set a variable named `items` (list of `{id, label, subtitle?}`); the blueprint then notifies `search_results`. It also accepts optional **action** sequences for home/page/button, form/list, and scan/inventory events (`mc40_barcode_scanned`, `mc40_mode_confirm`) — leave empty to ignore. Schema 1 payloads are still accepted (actions ignored; `custom` coerced to `use`).
 
 ## Sensors
 
@@ -86,31 +86,21 @@ Every grocery scan (not setup QR).
 | `scanned_at` | ISO-8601 UTC |
 | `mode` | Configured slot ID |
 
-### `mc40_stock_adjust`
+### `mc40_mode_confirm`
 
-Confirm on the overlay while in a **Use** behavior slot. Quantity is the amount to consume/remove.
+Confirm on the product overlay (any mode). Branch automations on `mode` (configured slot ID).
 
 | Field | Example |
 |-------|---------|
 | `barcode` | `"200012570"` |
+| `product_id` | `"42"` (optional; echoed from overlay when set) |
 | `name` | `Plain flour` |
 | `quantity` | `250` |
 | `measure` | `weight` or `count` |
 | `unit` | `g` |
-| `mode` | Configured slot ID, e.g. `use` |
+| `mode` | Configured slot ID, e.g. `use` or `shopping` |
 | `device_id` | `MC40N0` |
 | `scanned_at` | ISO-8601 UTC |
-
-### `mc40_shopping_add`
-
-- Confirm on the overlay while in **Shopping**, or
-- A scan while already in Shopping (quantity `1`, name often empty)
-
-Same field shape as stock adjust; `mode` is the configured slot ID, e.g. `shopping`.
-
-### `mc40_mode_confirm`
-
-Confirm on the overlay while in a **Custom** behavior slot. Same field shape as stock adjust; map it in automations however you like.
 
 ### `mc40_home_action`
 
@@ -210,6 +200,7 @@ Show the product card.
 |-------|----------|---------|--------|
 | `name` | no | barcode or `Product` | Title |
 | `barcode` | no | last scanned | Sent back on confirm |
+| `product_id` | no | — | Internal product key; alias `item_id`; echoed on confirm (independent of barcode) |
 | `image_url` | no | — | HTTP(S); loaded with OkHttp + BitmapFactory |
 | `measure` | no | `count` | `weight` or `count` (`mass` → weight) |
 | `unit` | no | `pcs` / `g` | Shown next to quantity |
@@ -228,6 +219,7 @@ data:
     measure: weight
     name: Plain flour
     barcode: "200012570"
+    product_id: "42"
     image_url: http://homeassistant.local:8123/local/flour.jpg
     unit: g
     quantity: 250
@@ -432,7 +424,7 @@ Copy [`homeassistant/blueprints/`](../homeassistant/blueprints/) into HA `config
 
 **Required configuration:** import [`mc40_configuration.yaml`](../homeassistant/blueprints/mc40_configuration.yaml) and create one automation per MC40 device.
 
-**Open Food Facts overlay:** import [`mc40_openfoodfacts_overlay.yaml`](../homeassistant/blueprints/mc40_openfoodfacts_overlay.yaml). Requires [ha-openfoodfacts](https://github.com/pantherale0/ha-openfoodfacts) (`open_food_facts.get_product`). Use-mode scans look up the barcode and send `command: overlay` with the product name, a small front image, and optional TTS. Confirm still fires `mc40_stock_adjust` (map that to Grocy or another pantry). Unknown barcodes open the overlay with the raw code, `beep: error`, and a red LED.
+**Open Food Facts overlay:** import [`mc40_openfoodfacts_overlay.yaml`](../homeassistant/blueprints/mc40_openfoodfacts_overlay.yaml). Requires [ha-openfoodfacts](https://github.com/pantherale0/ha-openfoodfacts) (`open_food_facts.get_product`). Use-mode scans look up the barcode and send `command: overlay` with the product name, a small front image, and optional TTS. Confirm fires `mc40_mode_confirm` (map that to Grocy or another pantry using `mode`). Unknown barcodes open the overlay with the raw code, `beep: error`, and a red LED.
 
 Stub YAML without a lookup: [`homeassistant/examples/overlay_after_scan.yaml`](../homeassistant/examples/overlay_after_scan.yaml).
 
@@ -444,9 +436,9 @@ Search (blueprint On search → set `items`): [`homeassistant/examples/search_sc
 
 Multi-page home: [`homeassistant/examples/pages.yaml`](../homeassistant/examples/pages.yaml).
 
-**Use mode:** `mc40_barcode_scanned` (mode=use) → Open Food Facts (or Grocy) lookup → `notify` overlay → `mc40_stock_adjust` → pantry consume.
+**Use mode:** `mc40_barcode_scanned` (mode=use) → Open Food Facts (or Grocy) lookup → `notify` overlay → `mc40_mode_confirm` → pantry consume (branch on `mode`).
 
-**Shopping mode:** device already fires `mc40_shopping_add` on scan. Optionally send an overlay afterward if you want a quantity edit before adding.
+**Shopping mode:** `mc40_barcode_scanned` only. Show an overlay from HA if you want a quantity card; Confirm fires `mc40_mode_confirm` — map that however you like using `mode`.
 
 **PTT:** `mc40_button_pressed` → whatever you want (cancel overlay, toggle a light, announce, open a list picker).
 

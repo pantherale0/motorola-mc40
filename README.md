@@ -10,7 +10,7 @@ This device cannot render Lovelace. There is no OAuth, Play Services, or WebView
 - Hardware imager via **DataWedge 6.7** (side scan triggers)
 - **Use** / **Shopping** modes, overridable from HA
 - Product overlay from `notify.mobile_app_*` (image, quantity, confirm)
-- Events back to HA: scan, stock adjust, shopping add, PTT press
+- Events back to HA: scan, mode confirm, PTT press
 - Diagnostic sensors (battery, Wi-Fi, proximity, scanner mode)
 - Drops the notify socket while the screen is off; 10-minute diagnostic updates while idle
 - Beep / vibrate / LED / **TTS** feedback from notify
@@ -46,10 +46,10 @@ Blueprints: [`homeassistant/blueprints/`](homeassistant/blueprints/) (including 
 ## Typical grocery flow
 
 ```text
-Scan (Use) → mc40_barcode_scanned
-          → HA looks up Open Food Facts (or Grocy)
-          → notify overlay (name, image, qty)
-          → Confirm → mc40_stock_adjust
+Scan → mc40_barcode_scanned
+    → HA looks up Open Food Facts (or Grocy)
+    → notify overlay (name, image, qty)
+    → Confirm → mc40_mode_confirm (mode = slot ID)
 ```
 
-Shopping-mode scans fire `mc40_shopping_add` with quantity `1` immediately (and still `mc40_barcode_scanned`).
+Overlay Confirm always fires `mc40_mode_confirm`; branch on `mode` in automations.

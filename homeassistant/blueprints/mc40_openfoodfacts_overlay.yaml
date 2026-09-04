@@ -7,10 +7,10 @@ blueprint:
 
     Requires https://github.com/pantherale0/ha-openfoodfacts. Unknown or
     failed lookups still open the overlay with the raw barcode and error
-    feedback so Confirm can fire mc40_stock_adjust / mc40_shopping_add.
+    feedback so Confirm can fire mc40_mode_confirm.
 
-    Shopping-mode scans already send mc40_shopping_add immediately; leave
-    that mode unchecked unless you want a quantity card as well.
+    All modes only fire mc40_barcode_scanned on scan; show an overlay when
+    you want a quantity card before confirm.
   domain: automation
   source_url: https://github.com/pantherale0/motorola-mc40
   author: pantherale0

@@ -46,10 +46,9 @@ The status bar is hidden (fullscreen). A thin **LED bar** at the top of the scre
 
 ## Modes
 
-Each blueprint slot has a label, an ID, and either **Use** or **Shopping** behavior. The slot ID is sent as `event_data.mode`; behavior determines scan and confirmation handling.
+Each blueprint slot has a label, an ID, and a behavior (`use`, `shopping`, or `custom`). The slot ID is sent as `event_data.mode`; behavior determines confirmation handling.
 
-- **Use behavior:** fires `mc40_barcode_scanned`; overlay confirm fires `mc40_stock_adjust`.
-- **Shopping behavior:** also fires `mc40_shopping_add` immediately on scan; overlay confirm fires `mc40_shopping_add`.
+- **All behaviors:** fire `mc40_barcode_scanned` on scan; overlay confirm fires `mc40_mode_confirm` with the current slot ID as `mode` (branch in HA).
 
 HA can switch mode with notify `command: set_mode` and any configured slot ID. The device also exposes `sensor.scanner_mode`.
 
@@ -62,6 +61,8 @@ When HA sends `command: overlay`, a modal card covers the scanner (dimmed backgr
 - Editable quantity + unit (type on the keypad, or ±)
 - **Confirm** / **Dismiss**
 - Tap the dim area or Back to dismiss
+
+Optional `product_id` (alias `item_id`) is stored on the card and echoed on confirm (`mc40_mode_confirm`) for services that key off an internal ID instead of barcode. It clears when the overlay is dismissed.
 
 After ± or Done on the quantity field, focus returns to the hidden scan-capture field so the imager still works. Optional `timeout` (seconds) auto-dismisses the card.
 

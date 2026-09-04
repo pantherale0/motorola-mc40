@@ -157,34 +157,15 @@ class SensorPublisher(
         })
     }
 
-    fun publishStockAdjust(
-        barcode: String,
-        name: String,
-        quantity: Double,
-        measure: String,
-        unit: String
-    ) {
-        fireNamed("mc40_stock_adjust", barcode, name, quantity, measure, unit, prefs.scannerMode)
-    }
-
-    fun publishShoppingAdd(
-        barcode: String,
-        name: String,
-        quantity: Double,
-        measure: String,
-        unit: String
-    ) {
-        fireNamed("mc40_shopping_add", barcode, name, quantity, measure, unit, prefs.scannerMode)
-    }
-
     fun publishModeConfirm(
         barcode: String,
         name: String,
         quantity: Double,
         measure: String,
-        unit: String
+        unit: String,
+        productId: String = ""
     ) {
-        fireNamed("mc40_mode_confirm", barcode, name, quantity, measure, unit, prefs.scannerMode)
+        fireNamed("mc40_mode_confirm", barcode, name, quantity, measure, unit, prefs.scannerMode, productId)
     }
 
     fun publishHomeAction(actionId: String, label: String) {
@@ -302,12 +283,14 @@ class SensorPublisher(
         quantity: Double,
         measure: String,
         unit: String,
-        mode: String
+        mode: String,
+        productId: String = ""
     ) {
         val event = JsonObject().apply {
             addProperty("event_type", eventType)
             add("event_data", JsonObject().apply {
                 addProperty("barcode", barcode)
+                addProperty("product_id", productId)
                 addProperty("name", name)
                 addProperty("quantity", quantity)
                 addProperty("measure", measure)

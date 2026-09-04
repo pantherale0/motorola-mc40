@@ -1,7 +1,7 @@
 # Example: after a Use-mode scan, send a product overlay to the MC40.
 # For a ready-made Open Food Facts lookup, import
 # homeassistant/blueprints/mc40_openfoodfacts_overlay.yaml instead.
-# Shopping-mode scans already fire mc40_shopping_add from the device.
+# Overlay Confirm → mc40_mode_confirm (branch on mode).
 
 automation:
   - alias: MC40 use overlay
@@ -20,26 +20,18 @@ automation:
             measure: count
             name: "{{ trigger.event.data.barcode }}"
             barcode: "{{ trigger.event.data.barcode }}"
+            # Optional: internal product key for services that do not look up by barcode
+            # product_id: "{{ states('sensor.example_product_id') }}"
             unit: pcs
             quantity: 1
             step: 1
 
-  - alias: MC40 stock adjust
+  - alias: MC40 mode confirm
     trigger:
       - platform: event
-        event_type: mc40_stock_adjust
+        event_type: mc40_mode_confirm
     action:
       - action: persistent_notification.create
         data:
-          title: "MC40 used {{ trigger.event.data.name }}"
-          message: "{{ trigger.event.data.quantity }} {{ trigger.event.data.unit }}"
-
-  - alias: MC40 shopping add
-    trigger:
-      - platform: event
-        event_type: mc40_shopping_add
-    action:
-      - action: persistent_notification.create
-        data:
-          title: "MC40 shopping {{ trigger.event.data.barcode }}"
+          title: "MC40 confirm {{ trigger.event.data.mode }} {{ trigger.event.data.name }}"
           message: "{{ trigger.event.data.quantity }} {{ trigger.event.data.unit }}"

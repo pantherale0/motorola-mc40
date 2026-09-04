@@ -93,6 +93,7 @@ data class OverlayCommand(
     val page: String? = null,
     val name: String = "",
     val barcode: String = "",
+    val productId: String = "",
     val imageUrl: String = "",
     val measure: Measure = Measure.COUNT,
     val unit: String = "",

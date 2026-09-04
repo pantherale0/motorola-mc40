@@ -659,34 +659,14 @@ blueprint:
           default: []
           selector:
             action: {}
-        on_stock_adjust:
-          name: On stock adjust
-          description: >
-            Event: mc40_stock_adjust (use-behavior overlay confirm).
-
-            Available: trigger.event.data.barcode, .name, .quantity, .measure
-            (weight|count), .unit, .mode, .device_id, .scanned_at.
-          default: []
-          selector:
-            action: {}
-        on_shopping_add:
-          name: On shopping add
-          description: >
-            Event: mc40_shopping_add (shopping scan qty 1, or shopping overlay
-            confirm).
-
-            Available: trigger.event.data.barcode, .name, .quantity, .measure
-            (weight|count), .unit, .mode, .device_id, .scanned_at.
-          default: []
-          selector:
-            action: {}
         on_mode_confirm:
-          name: On custom mode confirm
+          name: On mode confirm
           description: >
-            Event: mc40_mode_confirm (custom-behavior overlay confirm).
+            Event: mc40_mode_confirm (overlay Confirm in any mode). Branch on
+            trigger.event.data.mode (slot ID).
 
-            Available: trigger.event.data.barcode, .name, .quantity, .measure
-            (weight|count), .unit, .mode, .device_id, .scanned_at.
+            Available: trigger.event.data.barcode, .product_id, .name, .quantity,
+            .measure (weight|count), .unit, .mode, .device_id, .scanned_at.
           default: []
           selector:
             action: {}
@@ -726,12 +706,6 @@ trigger:
     event_type: mc40_barcode_scanned
     id: barcode_scanned
   - platform: event
-    event_type: mc40_stock_adjust
-    id: stock_adjust
-  - platform: event
-    event_type: mc40_shopping_add
-    id: shopping_add
-  - platform: event
     event_type: mc40_mode_confirm
     id: mode_confirm
   - platform: event
@@ -750,7 +724,7 @@ condition:
       {% elif trigger.id in [
            'search', 'home_action', 'page_changed', 'list_select', 'list_cancel',
            'form_submit', 'form_cancel', 'button_pressed', 'barcode_scanned',
-           'stock_adjust', 'shopping_add', 'mode_confirm'
+           'mode_confirm'
          ] %}
         {{ trigger.event.data.device_id | default('') == configured_device_id }}
       {% else %}
@@ -891,14 +865,6 @@ action:
           - condition: trigger
             id: barcode_scanned
         sequence: !input on_barcode_scanned
-      - conditions:
-          - condition: trigger
-            id: stock_adjust
-        sequence: !input on_stock_adjust
-      - conditions:
-          - condition: trigger
-            id: shopping_add
-        sequence: !input on_shopping_add
       - conditions:
           - condition: trigger
             id: mode_confirm

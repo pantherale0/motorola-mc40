@@ -46,9 +46,8 @@ On a later process start, a valid cached `ui_config` is restored immediately (sc
 1. DataWedge decode → intent extra **or** keystroke into hidden `wedgeCapture`
 2. `ScanBus` (debounced) → UI shows last barcode; service `publishScan`
 3. Webhook: update `last_barcode` + event `mc40_barcode_scanned` (`mode` included)
-4. If mode is shopping: also `mc40_shopping_add` qty 1
-5. HA automation may `notify` overlay / form / list / search / toast / feedback
-6. Confirm → `mc40_stock_adjust` or `mc40_shopping_add` (product overlay); form/list/search → `mc40_form_*` / `mc40_list_*` / `mc40_search`
+4. HA automation may `notify` overlay / form / list / search / toast / feedback
+5. Confirm → `mc40_mode_confirm` (includes `mode` slot ID); form/list/search → `mc40_form_*` / `mc40_list_*` / `mc40_search`
 
 Setup scans (unregistered or “Scan token QR”) fill URL/token instead of firing grocery events.
 

@@ -1265,22 +1265,13 @@ class MainActivity : AppCompatActivity() {
         commitQtyFromField()
         val measure = if (card.measure == Measure.WEIGHT) "weight" else "count"
         val barcode = card.barcode.ifBlank { binding.lastBarcode.text.toString() }
+        val productId = card.productId
         val name = card.name
         val qty = overlayQty
         val unit = card.unit
-        val behavior = UiConfigBus.state.config
-            ?.behaviorFor(Mc40App.instance.prefs.scannerMode)
-            ?: UiConfig.BEHAVIOR_USE
         io.execute {
-            val publisher = SensorPublisher(HaApi(Mc40App.instance.prefs), Mc40App.instance.prefs)
-            when (behavior) {
-                UiConfig.BEHAVIOR_SHOPPING ->
-                    publisher.publishShoppingAdd(barcode, name, qty, measure, unit)
-                UiConfig.BEHAVIOR_CUSTOM ->
-                    publisher.publishModeConfirm(barcode, name, qty, measure, unit)
-                else ->
-                    publisher.publishStockAdjust(barcode, name, qty, measure, unit)
-            }
+            SensorPublisher(HaApi(Mc40App.instance.prefs), Mc40App.instance.prefs)
+                .publishModeConfirm(barcode, name, qty, measure, unit, productId)
         }
         hideOverlay()
         status("Sent ${formatQty(qty)} ${unit}", error = false)

@@ -2,8 +2,8 @@ blueprint:
   name: MC40 barcode scanned
   description: >
     Fires when the Motorola MC40 companion app scans a barcode.
-    event_data.mode is use or shopping so you can show a product overlay
-    (notify) or add to a shopping list.
+    event_data.mode is the configured slot ID (e.g. use or shopping) so you
+    can show a product overlay (notify) or branch your automations.
   domain: automation
   source_url: https://github.com/pantherale0/motorola-mc40
   input:

@@ -1,8 +1,9 @@
 blueprint:
-  name: MC40 stock adjust
+  name: MC40 mode confirm
   description: >
-    Fires when Use mode Confirm is tapped on the MC40 product card.
-    quantity is the amount to consume or remove. Map this to Grocy or another pantry system.
+    Fires when Confirm is pressed on a product overlay (event mc40_mode_confirm).
+    quantity is the confirmed amount. Branch on trigger.event.data.mode (slot ID)
+    for use / shopping / custom workflows.
   domain: automation
   source_url: https://github.com/pantherale0/motorola-mc40
   input:
@@ -13,6 +14,6 @@ blueprint:
 
 trigger:
   - platform: event
-    event_type: mc40_stock_adjust
+    event_type: mc40_mode_confirm
 
 action: !input adjust_action

@@ -260,9 +260,6 @@ class CompanionService : Service() {
         runIo {
             runCatching {
                 sensors.publishScan(result)
-                if (currentBehavior() == UiConfig.BEHAVIOR_SHOPPING) {
-                    sensors.publishShoppingAdd(result.data, "", 1.0, "count", "pcs")
-                }
             }.onFailure { Log.w(Mc40App.TAG, "Scan publish failed: ${it.message}") }
         }
     }
@@ -340,12 +337,6 @@ class CompanionService : Service() {
             UiConfigBus.updateStage(UiInitStage.NOTIFY_CONNECTED)
             executor.execute { startUiHandshake() }
         }
-    }
-
-    private fun currentBehavior(): String {
-        return UiConfigBus.state.config
-            ?.behaviorFor(Mc40App.instance.prefs.scannerMode)
-            ?: UiConfig.BEHAVIOR_USE
     }
 
     private fun notification(): Notification {

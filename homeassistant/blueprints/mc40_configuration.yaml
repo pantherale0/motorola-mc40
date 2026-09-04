@@ -3,507 +3,614 @@ blueprint:
   description: >
     Required home-screen configuration for the Motorola MC40 companion (schema 3).
     Responds to mc40_boot with mode slots, optional pages/widgets, and legacy home
-    actions when no pages are set. Also handles mc40_search via an optional script
-    (response_variable items). step=complete is ignored so the handshake cannot loop.
+    actions when no pages are set. Handles mc40_search via an optional script, and
+    optional action sequences for home/page/list/form/button events. Barcode, stock,
+    and shopping flows stay in separate blueprints. step=complete is ignored so the
+    handshake cannot loop.
   domain: automation
   source_url: https://github.com/pantherale0/motorola-mc40
   author: pantherale0
   homeassistant:
     min_version: 2024.6.0
   input:
-    notify_device:
-      name: MC40 device
-      description: The mobile_app device to configure.
-      selector:
-        device:
-          filter:
-            - integration: mobile_app
-    device_id:
-      name: Device ID
-      description: Must match the device name sent in mc40_boot / mc40_search events.
-      default: MC40N0
-      selector:
-        text:
-    default_mode:
-      name: Default mode ID
-      description: Used when the previously selected mode is not in this configuration.
-      default: use
-      selector:
-        text:
-    default_page:
-      name: Default page ID
-      description: Opening page when pages are configured. Leave empty to use the first page.
-      default: home
-      selector:
-        text:
-    search_script:
-      name: Search script
+    section_device:
+      name: Device
+      icon: mdi:cellphone-wireless
+      description: Which MC40 to configure and how it identifies itself.
+      input:
+        notify_device:
+          name: MC40 device
+          description: The mobile_app device to configure.
+          selector:
+            device:
+              filter:
+                - integration: mobile_app
+        device_id:
+          name: Device ID
+          description: Must match the device name sent in mc40_* events.
+          default: MC40N0
+          selector:
+            text:
+        default_mode:
+          name: Default mode ID
+          description: Used when the previously selected mode is not in this configuration.
+          default: use
+          selector:
+            text:
+        default_page:
+          name: Default page ID
+          description: Opening page when pages are configured. Leave empty to use the first page.
+          default: home
+          selector:
+            text:
+
+    section_modes:
+      name: Mode slots
+      icon: mdi:swap-horizontal
+      description: Up to four sticky scanner mode buttons (use / shopping / custom).
+      collapsed: true
+      input:
+          slot_1_id:
+            name: Slot 1 ID
+            default: "use"
+            selector:
+              text:
+          slot_1_label:
+            name: Slot 1 label
+            default: "Use"
+            selector:
+              text:
+          slot_1_behavior:
+            name: Slot 1 behavior
+            default: use
+            selector:
+              select:
+                options:
+                  - label: Use
+                    value: use
+                  - label: Shopping
+                    value: shopping
+                  - label: Custom
+                    value: custom
+          slot_2_id:
+            name: Slot 2 ID
+            default: "shopping"
+            selector:
+              text:
+          slot_2_label:
+            name: Slot 2 label
+            default: "Shopping"
+            selector:
+              text:
+          slot_2_behavior:
+            name: Slot 2 behavior
+            default: shopping
+            selector:
+              select:
+                options:
+                  - label: Use
+                    value: use
+                  - label: Shopping
+                    value: shopping
+                  - label: Custom
+                    value: custom
+          slot_3_id:
+            name: Slot 3 ID
+            description: Leave the ID or label empty to hide this slot.
+            default: ""
+            selector:
+              text:
+          slot_3_label:
+            name: Slot 3 label
+            default: ""
+            selector:
+              text:
+          slot_3_behavior:
+            name: Slot 3 behavior
+            default: use
+            selector:
+              select:
+                options:
+                  - label: Use
+                    value: use
+                  - label: Shopping
+                    value: shopping
+                  - label: Custom
+                    value: custom
+          slot_4_id:
+            name: Slot 4 ID
+            description: Leave the ID or label empty to hide this slot.
+            default: ""
+            selector:
+              text:
+          slot_4_label:
+            name: Slot 4 label
+            default: ""
+            selector:
+              text:
+          slot_4_behavior:
+            name: Slot 4 behavior
+            default: use
+            selector:
+              select:
+                options:
+                  - label: Use
+                    value: use
+                  - label: Shopping
+                    value: shopping
+                  - label: Custom
+                    value: custom
+
+    section_pages:
+      name: Pages
+      icon: mdi:book-open-page-variant
+      description: Up to three pages. Leave all page IDs empty to use legacy home actions only.
+      collapsed: true
+      input:
+          page_1_id:
+            name: Page 1 ID
+            description: Leave empty for schema-2 style home actions only (no pages).
+            default: "home"
+            selector:
+              text:
+          page_1_label:
+            name: Page 1 label
+            default: "Home"
+            selector:
+              text:
+          page_2_id:
+            name: Page 2 ID
+            description: Leave empty to omit.
+            default: ""
+            selector:
+              text:
+          page_2_label:
+            name: Page 2 label
+            default: ""
+            selector:
+              text:
+          page_3_id:
+            name: Page 3 ID
+            description: Leave empty to omit.
+            default: ""
+            selector:
+              text:
+          page_3_label:
+            name: Page 3 label
+            default: ""
+            selector:
+              text:
+
+    section_widgets:
+      name: Page widgets
+      icon: mdi:view-dashboard-edit
+      description: Up to six widgets across pages (text / button / nav).
+      collapsed: true
+      input:
+          widget_1_page:
+            name: Widget 1 page ID
+            description: Must match a page id. Leave empty to skip this widget.
+            default: "home"
+            selector:
+              text:
+          widget_1_type:
+            name: Widget 1 type
+            default: text
+            selector:
+              select:
+                options:
+                  - label: Text
+                    value: text
+                  - label: Button
+                    value: button
+                  - label: Navigate
+                    value: nav
+          widget_1_id:
+            name: Widget 1 ID
+            default: "hint"
+            selector:
+              text:
+          widget_1_label:
+            name: Widget 1 label
+            default: "Scan a product barcode"
+            selector:
+              text:
+          widget_1_kind:
+            name: Widget 1 button kind
+            default: event
+            selector:
+              select:
+                options:
+                  - label: Event
+                    value: event
+                  - label: Search
+                    value: search
+          widget_1_target:
+            name: Widget 1 nav target page
+            default: ""
+            selector:
+              text:
+          widget_2_page:
+            name: Widget 2 page ID
+            default: "home"
+            selector:
+              text:
+          widget_2_type:
+            name: Widget 2 type
+            default: button
+            selector:
+              select:
+                options:
+                  - label: Text
+                    value: text
+                  - label: Button
+                    value: button
+                  - label: Navigate
+                    value: nav
+          widget_2_id:
+            name: Widget 2 ID
+            default: "products"
+            selector:
+              text:
+          widget_2_label:
+            name: Widget 2 label
+            default: "Search"
+            selector:
+              text:
+          widget_2_kind:
+            name: Widget 2 button kind
+            default: search
+            selector:
+              select:
+                options:
+                  - label: Event
+                    value: event
+                  - label: Search
+                    value: search
+          widget_2_target:
+            name: Widget 2 nav target page
+            default: ""
+            selector:
+              text:
+          widget_3_page:
+            name: Widget 3 page ID
+            default: ""
+            selector:
+              text:
+          widget_3_type:
+            name: Widget 3 type
+            default: button
+            selector:
+              select:
+                options:
+                  - label: Text
+                    value: text
+                  - label: Button
+                    value: button
+                  - label: Navigate
+                    value: nav
+          widget_3_id:
+            name: Widget 3 ID
+            default: ""
+            selector:
+              text:
+          widget_3_label:
+            name: Widget 3 label
+            default: ""
+            selector:
+              text:
+          widget_3_kind:
+            name: Widget 3 button kind
+            default: event
+            selector:
+              select:
+                options:
+                  - label: Event
+                    value: event
+                  - label: Search
+                    value: search
+          widget_3_target:
+            name: Widget 3 nav target page
+            default: ""
+            selector:
+              text:
+          widget_4_page:
+            name: Widget 4 page ID
+            default: ""
+            selector:
+              text:
+          widget_4_type:
+            name: Widget 4 type
+            default: button
+            selector:
+              select:
+                options:
+                  - label: Text
+                    value: text
+                  - label: Button
+                    value: button
+                  - label: Navigate
+                    value: nav
+          widget_4_id:
+            name: Widget 4 ID
+            default: ""
+            selector:
+              text:
+          widget_4_label:
+            name: Widget 4 label
+            default: ""
+            selector:
+              text:
+          widget_4_kind:
+            name: Widget 4 button kind
+            default: event
+            selector:
+              select:
+                options:
+                  - label: Event
+                    value: event
+                  - label: Search
+                    value: search
+          widget_4_target:
+            name: Widget 4 nav target page
+            default: ""
+            selector:
+              text:
+          widget_5_page:
+            name: Widget 5 page ID
+            default: ""
+            selector:
+              text:
+          widget_5_type:
+            name: Widget 5 type
+            default: button
+            selector:
+              select:
+                options:
+                  - label: Text
+                    value: text
+                  - label: Button
+                    value: button
+                  - label: Navigate
+                    value: nav
+          widget_5_id:
+            name: Widget 5 ID
+            default: ""
+            selector:
+              text:
+          widget_5_label:
+            name: Widget 5 label
+            default: ""
+            selector:
+              text:
+          widget_5_kind:
+            name: Widget 5 button kind
+            default: event
+            selector:
+              select:
+                options:
+                  - label: Event
+                    value: event
+                  - label: Search
+                    value: search
+          widget_5_target:
+            name: Widget 5 nav target page
+            default: ""
+            selector:
+              text:
+          widget_6_page:
+            name: Widget 6 page ID
+            default: ""
+            selector:
+              text:
+          widget_6_type:
+            name: Widget 6 type
+            default: button
+            selector:
+              select:
+                options:
+                  - label: Text
+                    value: text
+                  - label: Button
+                    value: button
+                  - label: Navigate
+                    value: nav
+          widget_6_id:
+            name: Widget 6 ID
+            default: ""
+            selector:
+              text:
+          widget_6_label:
+            name: Widget 6 label
+            default: ""
+            selector:
+              text:
+          widget_6_kind:
+            name: Widget 6 button kind
+            default: event
+            selector:
+              select:
+                options:
+                  - label: Event
+                    value: event
+                  - label: Search
+                    value: search
+          widget_6_target:
+            name: Widget 6 nav target page
+            default: ""
+            selector:
+              text:
+
+    section_legacy_actions:
+      name: Legacy home actions
+      icon: mdi:gesture-tap-button
+      description: Schema 2 style buttons when no pages are configured. Ignored if any page ID is set.
+      collapsed: true
+      input:
+          action_1_id:
+            name: Legacy action 1 ID
+            description: Used only when no pages are configured.
+            default: ""
+            selector:
+              text:
+          action_1_label:
+            name: Legacy action 1 label
+            default: ""
+            selector:
+              text:
+          action_1_kind:
+            name: Legacy action 1 kind
+            default: event
+            selector:
+              select:
+                options:
+                  - label: Event (mc40_home_action)
+                    value: event
+                  - label: Search (on-device query)
+                    value: search
+          action_2_id:
+            name: Legacy action 2 ID
+            default: ""
+            selector:
+              text:
+          action_2_label:
+            name: Legacy action 2 label
+            default: ""
+            selector:
+              text:
+          action_2_kind:
+            name: Legacy action 2 kind
+            default: event
+            selector:
+              select:
+                options:
+                  - label: Event (mc40_home_action)
+                    value: event
+                  - label: Search (on-device query)
+                    value: search
+          action_3_id:
+            name: Legacy action 3 ID
+            default: ""
+            selector:
+              text:
+          action_3_label:
+            name: Legacy action 3 label
+            default: ""
+            selector:
+              text:
+          action_3_kind:
+            name: Legacy action 3 kind
+            default: event
+            selector:
+              select:
+                options:
+                  - label: Event (mc40_home_action)
+                    value: event
+                  - label: Search (on-device query)
+                    value: search
+          action_4_id:
+            name: Legacy action 4 ID
+            default: ""
+            selector:
+              text:
+          action_4_label:
+            name: Legacy action 4 label
+            default: ""
+            selector:
+              text:
+          action_4_kind:
+            name: Legacy action 4 kind
+            default: event
+            selector:
+              select:
+                options:
+                  - label: Event (mc40_home_action)
+                    value: event
+                  - label: Search (on-device query)
+                    value: search
+
+    section_search:
+      name: Search
+      icon: mdi:magnify
+      description: Optional script for on-device search (must support response_variable).
+      collapsed: true
+      input:
+        search_script:
+          name: Search script
+          description: >
+            Called on mc40_search with search_id, query, mode, device_id.
+            Must return { items: [ {id, label, subtitle?}, ... ] } via response_variable.
+            Access as search_result['items'] (not .items). Use mode parallel or restart.
+          default: ""
+          selector:
+            entity:
+              domain: script
+
+    section_events:
+      name: Event handlers
+      icon: mdi:lightning-bolt
       description: >
-        Optional. Called on mc40_search with search_id, query, mode, device_id.
-        Must return a mapping { items: [ {id, label, subtitle?}, ... ] } via
-        response_variable. Access as search_result['items'] (not .items).
-        Use script mode parallel or restart (not queued).
-      default:
-      selector:
-        entity:
-          domain: script
-    slot_1_id:
-      name: Slot 1 ID
-      default: use
-      selector:
-        text:
-    slot_1_label:
-      name: Slot 1 label
-      default: Use
-      selector:
-        text:
-    slot_1_behavior:
-      name: Slot 1 behavior
-      default: use
-      selector:
-        select:
-          options:
-            - label: Use
-              value: use
-            - label: Shopping
-              value: shopping
-            - label: Custom
-              value: custom
-    slot_2_id:
-      name: Slot 2 ID
-      default: shopping
-      selector:
-        text:
-    slot_2_label:
-      name: Slot 2 label
-      default: Shopping
-      selector:
-        text:
-    slot_2_behavior:
-      name: Slot 2 behavior
-      default: shopping
-      selector:
-        select:
-          options:
-            - label: Use
-              value: use
-            - label: Shopping
-              value: shopping
-            - label: Custom
-              value: custom
-    slot_3_id:
-      name: Slot 3 ID
-      description: Leave the ID or label empty to hide this slot.
-      default: ""
-      selector:
-        text:
-    slot_3_label:
-      name: Slot 3 label
-      default: ""
-      selector:
-        text:
-    slot_3_behavior:
-      name: Slot 3 behavior
-      default: use
-      selector:
-        select:
-          options:
-            - label: Use
-              value: use
-            - label: Shopping
-              value: shopping
-            - label: Custom
-              value: custom
-    slot_4_id:
-      name: Slot 4 ID
-      description: Leave the ID or label empty to hide this slot.
-      default: ""
-      selector:
-        text:
-    slot_4_label:
-      name: Slot 4 label
-      default: ""
-      selector:
-        text:
-    slot_4_behavior:
-      name: Slot 4 behavior
-      default: use
-      selector:
-        select:
-          options:
-            - label: Use
-              value: use
-            - label: Shopping
-              value: shopping
-            - label: Custom
-              value: custom
-    page_1_id:
-      name: Page 1 ID
-      description: Leave empty for schema-2 style home actions only (no pages).
-      default: home
-      selector:
-        text:
-    page_1_label:
-      name: Page 1 label
-      default: Home
-      selector:
-        text:
-    page_2_id:
-      name: Page 2 ID
-      description: Leave empty to omit.
-      default: ""
-      selector:
-        text:
-    page_2_label:
-      name: Page 2 label
-      default: ""
-      selector:
-        text:
-    page_3_id:
-      name: Page 3 ID
-      description: Leave empty to omit.
-      default: ""
-      selector:
-        text:
-    page_3_label:
-      name: Page 3 label
-      default: ""
-      selector:
-        text:
-    widget_1_page:
-      name: Widget 1 page ID
-      description: Must match a page id. Leave empty to skip this widget.
-      default: home
-      selector:
-        text:
-    widget_1_type:
-      name: Widget 1 type
-      default: text
-      selector:
-        select:
-          options:
-            - label: Text
-              value: text
-            - label: Button
-              value: button
-            - label: Navigate
-              value: nav
-    widget_1_id:
-      name: Widget 1 ID
-      default: hint
-      selector:
-        text:
-    widget_1_label:
-      name: Widget 1 label
-      default: Scan a product barcode
-      selector:
-        text:
-    widget_1_kind:
-      name: Widget 1 button kind
-      default: event
-      selector:
-        select:
-          options:
-            - label: Event
-              value: event
-            - label: Search
-              value: search
-    widget_1_target:
-      name: Widget 1 nav target page
-      default: ""
-      selector:
-        text:
-    widget_2_page:
-      name: Widget 2 page ID
-      default: home
-      selector:
-        text:
-    widget_2_type:
-      name: Widget 2 type
-      default: button
-      selector:
-        select:
-          options:
-            - label: Text
-              value: text
-            - label: Button
-              value: button
-            - label: Navigate
-              value: nav
-    widget_2_id:
-      name: Widget 2 ID
-      default: products
-      selector:
-        text:
-    widget_2_label:
-      name: Widget 2 label
-      default: Search
-      selector:
-        text:
-    widget_2_kind:
-      name: Widget 2 button kind
-      default: search
-      selector:
-        select:
-          options:
-            - label: Event
-              value: event
-            - label: Search
-              value: search
-    widget_2_target:
-      name: Widget 2 nav target page
-      default: ""
-      selector:
-        text:
-    widget_3_page:
-      name: Widget 3 page ID
-      default: ""
-      selector:
-        text:
-    widget_3_type:
-      name: Widget 3 type
-      default: button
-      selector:
-        select:
-          options:
-            - label: Text
-              value: text
-            - label: Button
-              value: button
-            - label: Navigate
-              value: nav
-    widget_3_id:
-      name: Widget 3 ID
-      default: ""
-      selector:
-        text:
-    widget_3_label:
-      name: Widget 3 label
-      default: ""
-      selector:
-        text:
-    widget_3_kind:
-      name: Widget 3 button kind
-      default: event
-      selector:
-        select:
-          options:
-            - label: Event
-              value: event
-            - label: Search
-              value: search
-    widget_3_target:
-      name: Widget 3 nav target page
-      default: ""
-      selector:
-        text:
-    widget_4_page:
-      name: Widget 4 page ID
-      default: ""
-      selector:
-        text:
-    widget_4_type:
-      name: Widget 4 type
-      default: button
-      selector:
-        select:
-          options:
-            - label: Text
-              value: text
-            - label: Button
-              value: button
-            - label: Navigate
-              value: nav
-    widget_4_id:
-      name: Widget 4 ID
-      default: ""
-      selector:
-        text:
-    widget_4_label:
-      name: Widget 4 label
-      default: ""
-      selector:
-        text:
-    widget_4_kind:
-      name: Widget 4 button kind
-      default: event
-      selector:
-        select:
-          options:
-            - label: Event
-              value: event
-            - label: Search
-              value: search
-    widget_4_target:
-      name: Widget 4 nav target page
-      default: ""
-      selector:
-        text:
-    widget_5_page:
-      name: Widget 5 page ID
-      default: ""
-      selector:
-        text:
-    widget_5_type:
-      name: Widget 5 type
-      default: button
-      selector:
-        select:
-          options:
-            - label: Text
-              value: text
-            - label: Button
-              value: button
-            - label: Navigate
-              value: nav
-    widget_5_id:
-      name: Widget 5 ID
-      default: ""
-      selector:
-        text:
-    widget_5_label:
-      name: Widget 5 label
-      default: ""
-      selector:
-        text:
-    widget_5_kind:
-      name: Widget 5 button kind
-      default: event
-      selector:
-        select:
-          options:
-            - label: Event
-              value: event
-            - label: Search
-              value: search
-    widget_5_target:
-      name: Widget 5 nav target page
-      default: ""
-      selector:
-        text:
-    widget_6_page:
-      name: Widget 6 page ID
-      default: ""
-      selector:
-        text:
-    widget_6_type:
-      name: Widget 6 type
-      default: button
-      selector:
-        select:
-          options:
-            - label: Text
-              value: text
-            - label: Button
-              value: button
-            - label: Navigate
-              value: nav
-    widget_6_id:
-      name: Widget 6 ID
-      default: ""
-      selector:
-        text:
-    widget_6_label:
-      name: Widget 6 label
-      default: ""
-      selector:
-        text:
-    widget_6_kind:
-      name: Widget 6 button kind
-      default: event
-      selector:
-        select:
-          options:
-            - label: Event
-              value: event
-            - label: Search
-              value: search
-    widget_6_target:
-      name: Widget 6 nav target page
-      default: ""
-      selector:
-        text:
-    action_1_id:
-      name: Legacy action 1 ID
-      description: Used only when no pages are configured.
-      default: ""
-      selector:
-        text:
-    action_1_label:
-      name: Legacy action 1 label
-      default: ""
-      selector:
-        text:
-    action_1_kind:
-      name: Legacy action 1 kind
-      default: event
-      selector:
-        select:
-          options:
-            - label: Event (mc40_home_action)
-              value: event
-            - label: Search (on-device query)
-              value: search
-    action_2_id:
-      name: Legacy action 2 ID
-      default: ""
-      selector:
-        text:
-    action_2_label:
-      name: Legacy action 2 label
-      default: ""
-      selector:
-        text:
-    action_2_kind:
-      name: Legacy action 2 kind
-      default: event
-      selector:
-        select:
-          options:
-            - label: Event (mc40_home_action)
-              value: event
-            - label: Search (on-device query)
-              value: search
-    action_3_id:
-      name: Legacy action 3 ID
-      default: ""
-      selector:
-        text:
-    action_3_label:
-      name: Legacy action 3 label
-      default: ""
-      selector:
-        text:
-    action_3_kind:
-      name: Legacy action 3 kind
-      default: event
-      selector:
-        select:
-          options:
-            - label: Event (mc40_home_action)
-              value: event
-            - label: Search (on-device query)
-              value: search
-    action_4_id:
-      name: Legacy action 4 ID
-      default: ""
-      selector:
-        text:
-    action_4_label:
-      name: Legacy action 4 label
-      default: ""
-      selector:
-        text:
-    action_4_kind:
-      name: Legacy action 4 kind
-      default: event
-      selector:
-        select:
-          options:
-            - label: Event (mc40_home_action)
-              value: event
-            - label: Search (on-device query)
-              value: search
+        Optional actions when the MC40 fires UI events (filtered by Device ID).
+        Leave empty to ignore. Use trigger.event.data.* in templates.
+        Barcode / stock / shopping belong in separate blueprints.
+      collapsed: true
+      input:
+          on_home_action:
+            name: On home action
+            description: >
+              mc40_home_action — button/widget kind event (action_id, label, mode).
+              Add one or more actions; they run in order (same as button blueprints).
+            default: []
+            selector:
+              action: {}
+          on_page_changed:
+            name: On page changed
+            description: >
+              mc40_page_changed — local or remote page switch (page_id, label, mode).
+              Add one or more actions; they run in order.
+            default: []
+            selector:
+              action: {}
+          on_list_select:
+            name: On list / search select
+            description: >
+              mc40_list_select — list picker or search result (list_id, item_id, label).
+              Add one or more actions; they run in order.
+            default: []
+            selector:
+              action: {}
+          on_list_cancel:
+            name: On list / search cancel
+            description: >
+              mc40_list_cancel — dismiss or timeout (list_id, reason).
+              Add one or more actions; they run in order.
+            default: []
+            selector:
+              action: {}
+          on_form_submit:
+            name: On form submit
+            description: >
+              mc40_form_submit — confirm (form_id, values map).
+              Add one or more actions; they run in order.
+            default: []
+            selector:
+              action: {}
+          on_form_cancel:
+            name: On form cancel
+            description: >
+              mc40_form_cancel — dismiss or timeout (form_id, reason).
+              Add one or more actions; they run in order.
+            default: []
+            selector:
+              action: {}
+          on_button_pressed:
+            name: On hardware button
+            description: >
+              mc40_button_pressed — PTT etc. (button, keycode, scancode, mode).
+              Add one or more actions; they run in order.
+            default: []
+            selector:
+              action: {}
 
 variables:
   configured_device_id: !input device_id
@@ -517,6 +624,27 @@ trigger:
     event_type: mc40_search
     id: search
   - platform: event
+    event_type: mc40_home_action
+    id: home_action
+  - platform: event
+    event_type: mc40_page_changed
+    id: page_changed
+  - platform: event
+    event_type: mc40_list_select
+    id: list_select
+  - platform: event
+    event_type: mc40_list_cancel
+    id: list_cancel
+  - platform: event
+    event_type: mc40_form_submit
+    id: form_submit
+  - platform: event
+    event_type: mc40_form_cancel
+    id: form_cancel
+  - platform: event
+    event_type: mc40_button_pressed
+    id: button_pressed
+  - platform: event
     event_type: automation_reloaded
     id: automation_reloaded
   - platform: homeassistant
@@ -529,7 +657,8 @@ condition:
       {% if trigger.id == 'boot' %}
         {{ trigger.event.data.device_id | default('') == configured_device_id
            and trigger.event.data.step | default('') in ['start', 'timeout'] }}
-      {% elif trigger.id == 'search' %}
+      {% elif trigger.id in ['search', 'home_action', 'page_changed', 'list_select',
+                              'list_cancel', 'form_submit', 'form_cancel', 'button_pressed'] %}
         {{ trigger.event.data.device_id | default('') == configured_device_id }}
       {% else %}
         true
@@ -657,6 +786,34 @@ action:
               level: error
               duration: short
               beep: error
+      - conditions:
+          - condition: trigger
+            id: home_action
+        sequence: !input on_home_action
+      - conditions:
+          - condition: trigger
+            id: page_changed
+        sequence: !input on_page_changed
+      - conditions:
+          - condition: trigger
+            id: list_select
+        sequence: !input on_list_select
+      - conditions:
+          - condition: trigger
+            id: list_cancel
+        sequence: !input on_list_cancel
+      - conditions:
+          - condition: trigger
+            id: form_submit
+        sequence: !input on_form_submit
+      - conditions:
+          - condition: trigger
+            id: form_cancel
+        sequence: !input on_form_cancel
+      - conditions:
+          - condition: trigger
+            id: button_pressed
+        sequence: !input on_button_pressed
 
 mode: queued
 max: 10

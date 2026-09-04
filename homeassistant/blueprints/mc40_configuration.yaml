@@ -3,7 +3,8 @@ blueprint:
   description: >
     Required home-screen configuration for the Motorola MC40 companion.
     The app remains on its welcome screen until this automation responds to
-    mc40_boot with one or more mode slots.
+    mc40_boot (step start or timeout) with one or more mode slots. step=complete
+    is ignored so the handshake cannot loop after a successful apply.
   domain: automation
   source_url: https://github.com/pantherale0/motorola-mc40
   author: pantherale0
@@ -129,8 +130,12 @@ trigger:
 condition:
   - condition: template
     value_template: >-
-      {{ trigger.id != 'boot'
-         or trigger.event.data.device_id | default('') == configured_device_id }}
+      {% if trigger.id == 'boot' %}
+        {{ trigger.event.data.device_id | default('') == configured_device_id
+           and trigger.event.data.step | default('') in ['start', 'timeout'] }}
+      {% else %}
+        true
+      {% endif %}
 
 action:
   - device_id: !input notify_device

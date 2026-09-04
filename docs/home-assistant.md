@@ -17,7 +17,7 @@ The notify target is typically `notify.mobile_app_mc40n0`. The suffix follows th
 
 Import [`mc40_configuration.yaml`](../homeassistant/blueprints/mc40_configuration.yaml), create one automation from it, and select the MC40 `mobile_app` device. The app intentionally stays on its welcome/progress screen until this automation returns at least one mode slot.
 
-The device fires `mc40_boot` after its local-push WebSocket subscribes. The blueprint responds with `command: ui_config`. The configuration is cached only for the life of the app process; an app restart or `command: reinit` requests it again. The device retries the boot event every 10 seconds while waiting.
+The device fires `mc40_boot` after its local-push WebSocket subscribes. The blueprint responds with `command: ui_config` only for `step: start` or `step: timeout` (not `complete`). The configuration is cached only for the life of the app process; an app restart or `command: reinit` requests it again. The device retries the boot event every 10 seconds while waiting.
 
 Up to four slots can be configured. Each has:
 
@@ -59,7 +59,7 @@ Requests home-screen configuration after local push connects.
 | `device_id` | `MC40N0` |
 | `app_version` | `1.0.0` |
 | `schema` | `1` |
-| `step` | `start`, `timeout`, or `complete` |
+| `step` | `start` / `timeout` request config; `complete` acknowledges first successful apply (does not re-trigger the blueprint) |
 
 ### `mc40_barcode_scanned`
 

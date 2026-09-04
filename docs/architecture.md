@@ -37,7 +37,7 @@ In-process buses (`ScanBus`, `OverlayBus`, `ModeBus`, `ButtonBus`) hop to the ma
 2. Sensors register and the local-push WebSocket subscribes.
 3. The service fires `mc40_boot` with `step: start`, then `timeout` every 10 seconds.
 4. The required HA blueprint sends notify `command: ui_config`.
-5. The app validates one to four slots, selects the configured default if needed, renders the home screen, and fires `mc40_boot` with `step: complete`.
+5. The app validates one to four slots, selects the configured default if needed, renders the home screen, and fires `mc40_boot` with `step: complete` once. The blueprint ignores `complete` so live re-pushes cannot loop.
 
 The config is deliberately not persisted. Process restart or notify `command: reinit` repeats initialization. Until ready, scan publication and product overlays are gated. The notify socket is kept alive even if the screen turns off while configuration is required.
 

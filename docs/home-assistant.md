@@ -138,7 +138,7 @@ User submitted a query in the on-device search UI (home action kind `search`, or
 | `device_id` | `MC40N0` |
 | `searched_at` | ISO-8601 UTC |
 
-The configuration blueprint calls the optional search script with these fields and expects `{ items: [...] }` via `response_variable`, then notifies `search_results`. Example script: [`homeassistant/examples/search_script.yaml`](../homeassistant/examples/search_script.yaml).
+The configuration blueprint calls the optional search script with these fields and expects `{ items: [...] }` via `response_variable`, then notifies `search_results` with `items: "{{ search_result['items'] | default([]) | to_json }}"` (bracket access — `.items` is `dict.items()`). Example script: [`homeassistant/examples/search_script.yaml`](../homeassistant/examples/search_script.yaml).
 
 ### `mc40_page_changed`
 

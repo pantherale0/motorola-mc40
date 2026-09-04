@@ -41,7 +41,8 @@ blueprint:
       description: >
         Optional. Called on mc40_search with search_id, query, mode, device_id.
         Must return a mapping { items: [ {id, label, subtitle?}, ... ] } via
-        response_variable. Use script mode parallel or restart (not queued).
+        response_variable. Access as search_result['items'] (not .items).
+        Use script mode parallel or restart (not queued).
       default:
       selector:
         entity:
@@ -640,7 +641,8 @@ action:
               command: search_results
               id: "{{ trigger.event.data.search_id }}"
               # Device notify cannot carry nested lists reliably; send JSON text.
-              items: "{{ search_result.items | default([]) | to_json }}"
+              # Use ['items'] — .items is dict.items() and breaks to_json.
+              items: "{{ search_result['items'] | default([]) | to_json }}"
       - conditions:
           - condition: trigger
             id: search

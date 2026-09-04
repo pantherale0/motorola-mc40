@@ -15,7 +15,7 @@ The notify target is typically `notify.mobile_app_mc40n0`. The suffix follows th
 
 ## Required home-screen configuration
 
-Import [`mc40_configuration.yaml`](../homeassistant/blueprints/mc40_configuration.yaml), create one automation from it, and select the MC40 `mobile_app` device. Inputs are grouped into collapsible sections (Device, Mode slots, Pages, Widgets, Legacy actions, Search, Event handlers). The app intentionally stays on its welcome/progress screen until this automation returns at least one mode slot.
+Import [`mc40_configuration.yaml`](../homeassistant/blueprints/mc40_configuration.yaml), create one automation from it, and select the MC40 `mobile_app` device. Inputs are grouped into collapsible sections (Device, Mode slots, Pages, Widgets, Legacy actions, Search, Home & hardware, Forms & lists, Scan & inventory). The app intentionally stays on its welcome/progress screen until this automation returns at least one mode slot.
 
 The device fires `mc40_boot` after its local-push WebSocket subscribes (advertising `schema: 3`). The blueprint responds with `command: ui_config` only for `step: start` or `step: timeout` (not `complete`). The last valid configuration is persisted on the device and restored on process restart so the home UI works offline from HA; a soft `mc40_boot` `start` still refreshes it when notify reconnects. `command: reinit` (or unregister) clears the cache and runs a full handshake again. Without a cache, the device retries the boot event every 10 seconds while waiting.
 
@@ -35,7 +35,7 @@ Schema 2 also supports up to four **home actions** (id + label + kind). Kind `ev
 
 Schema 3 adds up to three **pages** with per-page **widgets** (`text`, `button`, `nav`). Mode slots stay sticky above the current page. When pages are present, top-level actions are ignored. Navigate with `nav` widgets or notify `set_page`. Example: [`homeassistant/examples/pages.yaml`](../homeassistant/examples/pages.yaml).
 
-The configuration blueprint can run an optional **search script** on `mc40_search` and push `search_results` back. It also accepts optional **action** sequences for `mc40_home_action`, `mc40_page_changed`, `mc40_list_select` / `cancel`, `mc40_form_submit` / `cancel`, and `mc40_button_pressed` (leave empty to ignore). Barcode / stock / shopping stay in separate blueprints. Schema 1 payloads are still accepted (actions ignored; `custom` coerced to `use`).
+The configuration blueprint can run an optional **On search** action chain on `mc40_search`. Those actions must set a variable named `items` (list of `{id, label, subtitle?}`); the blueprint then notifies `search_results`. It also accepts optional **action** sequences for home/page/button, form/list, and scan/inventory events (`mc40_barcode_scanned`, `mc40_stock_adjust`, `mc40_shopping_add`, `mc40_mode_confirm`) — leave empty to ignore. Schema 1 payloads are still accepted (actions ignored; `custom` coerced to `use`).
 
 ## Sensors
 
@@ -138,7 +138,7 @@ User submitted a query in the on-device search UI (home action kind `search`, or
 | `device_id` | `MC40N0` |
 | `searched_at` | ISO-8601 UTC |
 
-The configuration blueprint calls the optional search script with these fields and expects `{ items: [...] }` via `response_variable`, then notifies `search_results` with `items: "{{ search_result['items'] | default([]) | to_json }}"` (bracket access — `.items` is `dict.items()`). Example script: [`homeassistant/examples/search_script.yaml`](../homeassistant/examples/search_script.yaml).
+The configuration blueprint can run an optional **On search** action chain on `mc40_search`. Those actions must set a variable named `items` (list of `{id, label, subtitle?}`); the blueprint then notifies `search_results` with `items: "{{ items | default([]) | to_json }}"`. Example script + how to wire it: [`homeassistant/examples/search_script.yaml`](../homeassistant/examples/search_script.yaml).
 
 ### `mc40_page_changed`
 
@@ -440,7 +440,7 @@ Toast / form / list examples: [`homeassistant/examples/dynamic_ui.yaml`](../home
 
 Home actions / custom mode: [`homeassistant/examples/home_actions.yaml`](../homeassistant/examples/home_actions.yaml).
 
-Search script (blueprint input): [`homeassistant/examples/search_script.yaml`](../homeassistant/examples/search_script.yaml).
+Search (blueprint On search → set `items`): [`homeassistant/examples/search_script.yaml`](../homeassistant/examples/search_script.yaml).
 
 Multi-page home: [`homeassistant/examples/pages.yaml`](../homeassistant/examples/pages.yaml).
 

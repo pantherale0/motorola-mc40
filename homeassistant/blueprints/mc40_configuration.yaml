@@ -3,10 +3,9 @@ blueprint:
   description: >
     Required home-screen configuration for the Motorola MC40 companion (schema 3).
     Responds to mc40_boot with mode slots, optional pages/widgets, and legacy home
-    actions when no pages are set. Handles mc40_search via an optional script, and
-    optional action sequences for home/page/list/form/button events. Barcode, stock,
-    and shopping flows stay in separate blueprints. step=complete is ignored so the
-    handshake cannot loop.
+    actions when no pages are set. Optional action chains for search (must set an
+    items variable), UI events, forms/lists, and scan/inventory events. step=complete
+    is ignored so the handshake cannot loop.
   domain: automation
   source_url: https://github.com/pantherale0/motorola-mc40
   author: pantherale0
@@ -532,89 +531,168 @@ blueprint:
     section_search:
       name: Search
       icon: mdi:magnify
-      description: Optional script for on-device search (must support response_variable).
-      collapsed: true
-      input:
-        search_script:
-          name: Search script
-          description: >
-            Called on mc40_search with search_id, query, mode, device_id.
-            Must return { items: [ {id, label, subtitle?}, ... ] } via response_variable.
-            Access as search_result['items'] (not .items). Use mode parallel or restart.
-          default: ""
-          selector:
-            entity:
-              domain: script
-
-    section_events:
-      name: Event handlers
-      icon: mdi:lightning-bolt
       description: >
-        Optional actions when the MC40 fires UI events (filtered by Device ID).
-        Leave empty to ignore. Use trigger.event.data.* in templates.
-        Barcode / stock / shopping belong in separate blueprints.
+        On-device search. Your actions must set a variable named items; the blueprint
+        then notifies search_results. Templates may use trigger.event.data.*.
       collapsed: true
       input:
-          on_home_action:
-            name: On home action
-            description: >
-              mc40_home_action — button/widget kind event (action_id, label, mode).
-              Add one or more actions; they run in order (same as button blueprints).
-            default: []
-            selector:
-              action: {}
-          on_page_changed:
-            name: On page changed
-            description: >
-              mc40_page_changed — local or remote page switch (page_id, label, mode).
-              Add one or more actions; they run in order.
-            default: []
-            selector:
-              action: {}
-          on_list_select:
-            name: On list / search select
-            description: >
-              mc40_list_select — list picker or search result (list_id, item_id, label).
-              Add one or more actions; they run in order.
-            default: []
-            selector:
-              action: {}
-          on_list_cancel:
-            name: On list / search cancel
-            description: >
-              mc40_list_cancel — dismiss or timeout (list_id, reason).
-              Add one or more actions; they run in order.
-            default: []
-            selector:
-              action: {}
-          on_form_submit:
-            name: On form submit
-            description: >
-              mc40_form_submit — confirm (form_id, values map).
-              Add one or more actions; they run in order.
-            default: []
-            selector:
-              action: {}
-          on_form_cancel:
-            name: On form cancel
-            description: >
-              mc40_form_cancel — dismiss or timeout (form_id, reason).
-              Add one or more actions; they run in order.
-            default: []
-            selector:
-              action: {}
-          on_button_pressed:
-            name: On hardware button
-            description: >
-              mc40_button_pressed — PTT etc. (button, keycode, scancode, mode).
-              Add one or more actions; they run in order.
-            default: []
-            selector:
-              action: {}
+        on_search:
+          name: On search
+          description: >
+            Event: mc40_search.
+
+            Available: trigger.event.data.search_id, .query, .mode, .device_id,
+            .searched_at.
+
+            Run any actions, then you MUST set variable items to a list of
+            {id, label, subtitle?}. Example after script response_variable result:
+            variables → items: "{{ result['items'] | default([]) }}".
+            The blueprint then notifies search_results with that list.
+          default: []
+          selector:
+            action: {}
+
+    section_home_ui:
+      name: Home & hardware
+      icon: mdi:gesture-tap-button
+      description: >
+        Home buttons, page navigation, and hardware keys. Templates may use
+        trigger.event.data.*.
+      collapsed: true
+      input:
+        on_home_action:
+          name: On home action
+          description: >
+            Event: mc40_home_action (home/widget button kind event).
+
+            Available: trigger.event.data.action_id, .label, .mode, .device_id,
+            .pressed_at.
+          default: []
+          selector:
+            action: {}
+        on_page_changed:
+          name: On page changed
+          description: >
+            Event: mc40_page_changed (nav widget or notify set_page).
+
+            Available: trigger.event.data.page_id, .label, .mode, .device_id,
+            .changed_at.
+          default: []
+          selector:
+            action: {}
+        on_button_pressed:
+          name: On hardware button
+          description: >
+            Event: mc40_button_pressed (PTT; headset may be button=headset).
+
+            Available: trigger.event.data.button, .keycode, .scancode, .mode,
+            .device_id, .pressed_at.
+          default: []
+          selector:
+            action: {}
+
+    section_modals:
+      name: Forms & lists
+      icon: mdi:form-select
+      description: >
+        Form and list/search picker results. Templates may use trigger.event.data.*.
+      collapsed: true
+      input:
+        on_list_select:
+          name: On list / search select
+          description: >
+            Event: mc40_list_select (list picker or search row; list_id = search_id
+            for search).
+
+            Available: trigger.event.data.list_id, .item_id, .label, .mode,
+            .device_id, .selected_at.
+          default: []
+          selector:
+            action: {}
+        on_list_cancel:
+          name: On list / search cancel
+          description: >
+            Event: mc40_list_cancel (dismiss or timeout).
+
+            Available: trigger.event.data.list_id, .reason (dismiss|timeout),
+            .mode, .device_id, .cancelled_at.
+          default: []
+          selector:
+            action: {}
+        on_form_submit:
+          name: On form submit
+          description: >
+            Event: mc40_form_submit.
+
+            Available: trigger.event.data.form_id, .values (map of field id →
+            string; toggles are "true"/"false"), .mode, .device_id, .submitted_at.
+            Example field: trigger.event.data.values.note
+          default: []
+          selector:
+            action: {}
+        on_form_cancel:
+          name: On form cancel
+          description: >
+            Event: mc40_form_cancel (dismiss or timeout).
+
+            Available: trigger.event.data.form_id, .reason (dismiss|timeout),
+            .mode, .device_id, .cancelled_at.
+          default: []
+          selector:
+            action: {}
+
+    section_scan:
+      name: Scan & inventory
+      icon: mdi:barcode-scan
+      description: >
+        Barcode scans and overlay confirms. Templates may use trigger.event.data.*.
+        Leave empty to ignore.
+      collapsed: true
+      input:
+        on_barcode_scanned:
+          name: On barcode scanned
+          description: >
+            Event: mc40_barcode_scanned (every grocery scan; not setup QR).
+
+            Available: trigger.event.data.barcode, .symbology, .source
+            (scanner|datawedge), .mode, .device_id, .scanned_at.
+          default: []
+          selector:
+            action: {}
+        on_stock_adjust:
+          name: On stock adjust
+          description: >
+            Event: mc40_stock_adjust (use-behavior overlay confirm).
+
+            Available: trigger.event.data.barcode, .name, .quantity, .measure
+            (weight|count), .unit, .mode, .device_id, .scanned_at.
+          default: []
+          selector:
+            action: {}
+        on_shopping_add:
+          name: On shopping add
+          description: >
+            Event: mc40_shopping_add (shopping scan qty 1, or shopping overlay
+            confirm).
+
+            Available: trigger.event.data.barcode, .name, .quantity, .measure
+            (weight|count), .unit, .mode, .device_id, .scanned_at.
+          default: []
+          selector:
+            action: {}
+        on_mode_confirm:
+          name: On custom mode confirm
+          description: >
+            Event: mc40_mode_confirm (custom-behavior overlay confirm).
+
+            Available: trigger.event.data.barcode, .name, .quantity, .measure
+            (weight|count), .unit, .mode, .device_id, .scanned_at.
+          default: []
+          selector:
+            action: {}
 
 variables:
   configured_device_id: !input device_id
-  search_script_entity: !input search_script
 
 trigger:
   - platform: event
@@ -645,6 +723,18 @@ trigger:
     event_type: mc40_button_pressed
     id: button_pressed
   - platform: event
+    event_type: mc40_barcode_scanned
+    id: barcode_scanned
+  - platform: event
+    event_type: mc40_stock_adjust
+    id: stock_adjust
+  - platform: event
+    event_type: mc40_shopping_add
+    id: shopping_add
+  - platform: event
+    event_type: mc40_mode_confirm
+    id: mode_confirm
+  - platform: event
     event_type: automation_reloaded
     id: automation_reloaded
   - platform: homeassistant
@@ -657,8 +747,11 @@ condition:
       {% if trigger.id == 'boot' %}
         {{ trigger.event.data.device_id | default('') == configured_device_id
            and trigger.event.data.step | default('') in ['start', 'timeout'] }}
-      {% elif trigger.id in ['search', 'home_action', 'page_changed', 'list_select',
-                              'list_cancel', 'form_submit', 'form_cancel', 'button_pressed'] %}
+      {% elif trigger.id in [
+           'search', 'home_action', 'page_changed', 'list_select', 'list_cancel',
+           'form_submit', 'form_cancel', 'button_pressed', 'barcode_scanned',
+           'stock_adjust', 'shopping_add', 'mode_confirm'
+         ] %}
         {{ trigger.event.data.device_id | default('') == configured_device_id }}
       {% else %}
         true
@@ -752,16 +845,10 @@ action:
       - conditions:
           - condition: trigger
             id: search
-          - condition: template
-            value_template: "{{ search_script_entity not in [none, '', 'none'] }}"
         sequence:
-          - action: !input search_script
-            data:
-              search_id: "{{ trigger.event.data.search_id }}"
-              query: "{{ trigger.event.data.query }}"
-              mode: "{{ trigger.event.data.mode }}"
-              device_id: "{{ trigger.event.data.device_id }}"
-            response_variable: search_result
+          - variables:
+              items: []
+          - sequence: !input on_search
           - device_id: !input notify_device
             domain: mobile_app
             type: notify
@@ -770,22 +857,8 @@ action:
               command: search_results
               id: "{{ trigger.event.data.search_id }}"
               # Device notify cannot carry nested lists reliably; send JSON text.
-              # Use ['items'] — .items is dict.items() and breaks to_json.
-              items: "{{ search_result['items'] | default([]) | to_json }}"
-      - conditions:
-          - condition: trigger
-            id: search
-        sequence:
-          - device_id: !input notify_device
-            domain: mobile_app
-            type: notify
-            message: toast
-            data:
-              command: toast
-              message: No search script configured
-              level: error
-              duration: short
-              beep: error
+              # on_search must set variable items (list of {id, label, subtitle?}).
+              items: "{{ items | default([]) | to_json }}"
       - conditions:
           - condition: trigger
             id: home_action
@@ -814,6 +887,22 @@ action:
           - condition: trigger
             id: button_pressed
         sequence: !input on_button_pressed
+      - conditions:
+          - condition: trigger
+            id: barcode_scanned
+        sequence: !input on_barcode_scanned
+      - conditions:
+          - condition: trigger
+            id: stock_adjust
+        sequence: !input on_stock_adjust
+      - conditions:
+          - condition: trigger
+            id: shopping_add
+        sequence: !input on_shopping_add
+      - conditions:
+          - condition: trigger
+            id: mode_confirm
+        sequence: !input on_mode_confirm
 
 mode: queued
 max: 10

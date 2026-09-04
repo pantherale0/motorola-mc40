@@ -1,6 +1,21 @@
-# Example search script for the MC40 Configuration blueprint.
-# Assign this script to the blueprint "Search script" input.
-# Use mode: parallel or restart (not queued) so response_variable works.
+# Example search helpers for the MC40 Configuration blueprint "On search" action.
+#
+# In the blueprint Event handlers → On search, chain something like:
+#
+#   1. action: script.mc40_product_search
+#      data:
+#        search_id: "{{ trigger.event.data.search_id }}"
+#        query: "{{ trigger.event.data.query }}"
+#        mode: "{{ trigger.event.data.mode }}"
+#        device_id: "{{ trigger.event.data.device_id }}"
+#      response_variable: result
+#   2. variables:
+#        items: "{{ result['items'] | default([]) }}"
+#
+# The blueprint then notifies search_results from the `items` variable.
+# Use script mode: parallel or restart (not queued) so response_variable works.
+#
+# Or skip the script and set `items` directly with a variables / template action.
 
 script:
   mc40_product_search:
@@ -32,13 +47,13 @@ script:
             {{ matched
                | selectattr('label', 'search', query | default(''), true)
                | list }}
-          # Build the response mapping in one template so `items` stays a real list
-          # (nested `items: "{{ filtered }}"` stringifies and breaks search_results).
+          # Build the response mapping in one template so `items` stays a real list.
           result: "{{ {'items': filtered} }}"
       - stop: Search complete
         response_variable: result
 
 # After selecting a result, the device fires mc40_list_select with list_id = search_id.
+# Wire that in the blueprint "On list / search select" action chain, or separately:
 # automation:
 #   - alias: MC40 search select
 #     trigger:

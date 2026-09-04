@@ -10,4 +10,4 @@ alwaysApply: false
 - Parse both `com.symbol.datawedge.*` and `com.motorolasolutions.emdk.datawedge.*` extras.
 - Unregistered / setup mode: QR fills token (and optional URL). Registered: forward to webhook sensors + `mc40_barcode_scanned`.
 - Register sensors before `update_sensor_states`. Fire grocery scans as both a sensor update and `fire_event`.
-- Notifications: WebSocket channel only. Honor `data.command` (e.g. overlay) without building product UI in v1.
+- Notifications: WebSocket channel while the screen is on (closed on `SCREEN_OFF`). Honor `data.command` (e.g. overlay) without building product UI in v1.

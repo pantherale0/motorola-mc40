@@ -14,6 +14,13 @@ import javax.net.ssl.X509TrustManager
 object HttpClients {
     val okHttp: OkHttpClient = build()
 
+    /** Long-lived HA websocket: no idle read timeout, protocol pings keep the channel registered. */
+    val webSocket: OkHttpClient = okHttp.newBuilder()
+        .readTimeout(0, TimeUnit.MILLISECONDS)
+        .writeTimeout(0, TimeUnit.MILLISECONDS)
+        .pingInterval(20, TimeUnit.SECONDS)
+        .build()
+
     private fun build(): OkHttpClient {
         val builder = OkHttpClient.Builder()
             .connectTimeout(20, TimeUnit.SECONDS)

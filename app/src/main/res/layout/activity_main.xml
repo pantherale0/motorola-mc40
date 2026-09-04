@@ -79,6 +79,44 @@
             </LinearLayout>
 
             <LinearLayout
+                android:id="@+id/initPanel"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:gravity="center_horizontal"
+                android:orientation="vertical"
+                android:paddingTop="96dp"
+                android:visibility="gone">
+
+                <TextView
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:gravity="center"
+                    android:text="@string/init_title"
+                    android:textColor="@color/text"
+                    android:textSize="24sp"
+                    android:textStyle="bold" />
+
+                <TextView
+                    android:id="@+id/initStatus"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="24dp"
+                    android:gravity="center"
+                    android:text="@string/init_registering"
+                    android:textColor="@color/text_dim"
+                    android:textSize="16sp" />
+
+                <ProgressBar
+                    android:id="@+id/initProgress"
+                    style="?android:attr/progressBarStyleHorizontal"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="20dp"
+                    android:max="100"
+                    android:progress="20" />
+            </LinearLayout>
+
+            <LinearLayout
                 android:id="@+id/mainPanel"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
@@ -103,35 +141,11 @@
                     android:textColor="@color/text_dim" />
 
                 <LinearLayout
+                    android:id="@+id/modeContainer"
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
                     android:layout_marginTop="12dp"
-                    android:orientation="horizontal">
-
-                    <Button
-                        android:id="@+id/useModeButton"
-                        android:layout_width="0dp"
-                        android:layout_height="56dp"
-                        android:layout_marginEnd="6dp"
-                        android:layout_weight="1"
-                        android:background="@drawable/btn_mode_on"
-                        android:text="@string/mode_use"
-                        android:textColor="#121212"
-                        android:textSize="16sp"
-                        android:textStyle="bold" />
-
-                    <Button
-                        android:id="@+id/shopModeButton"
-                        android:layout_width="0dp"
-                        android:layout_height="56dp"
-                        android:layout_marginStart="6dp"
-                        android:layout_weight="1"
-                        android:background="@drawable/btn_mode_off"
-                        android:text="@string/mode_shopping"
-                        android:textColor="@color/text"
-                        android:textSize="16sp"
-                        android:textStyle="bold" />
-                </LinearLayout>
+                    android:orientation="vertical" />
 
                 <TextView
                     android:id="@+id/lastBarcode"

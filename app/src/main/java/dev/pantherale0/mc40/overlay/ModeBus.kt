@@ -5,7 +5,7 @@ import android.os.Looper
 
 object ModeBus {
     fun interface Listener {
-        fun onMode(mode: ScannerMode)
+        fun onMode(mode: String)
     }
 
     private val main = Handler(Looper.getMainLooper())
@@ -21,7 +21,7 @@ object ModeBus {
         listeners.remove(listener)
     }
 
-    fun post(mode: ScannerMode) {
+    fun post(mode: String) {
         val snapshot: List<Listener>
         synchronized(this) {
             snapshot = listeners.toList()

@@ -12,12 +12,13 @@ This device cannot render Lovelace. There is no OAuth, Play Services, or WebView
 - Product overlay from `notify.mobile_app_*` (image, quantity, confirm)
 - Events back to HA: scan, stock adjust, shopping add, PTT press
 - Diagnostic sensors (battery, Wi-Fi, proximity, scanner mode)
+- Drops the notify socket while the screen is off; 10-minute diagnostic updates while idle
 - Beep / vibrate / LED / **TTS** feedback from notify
 - Optional Home launcher, fullscreen (status bar hidden)
 
 ## Quick start
 
-1. Build and sideload (see [docs/build.md](docs/build.md)), or install an existing debug APK over ADB.
+1. Download a signed APK from [Releases](https://github.com/pantherale0/motorola-mc40/releases), or build and sideload (see [docs/build.md](docs/build.md)).
 2. In Home Assistant: Profile → **Long-lived access tokens** → create `MC40`.
 3. On the device: enter `http://homeassistant.local:8123`, paste or scan the token, tap **Connect**.
 4. Press **Home** and set **MC40 Companion** as the default launcher if you want kiosk mode.

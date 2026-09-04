@@ -15,29 +15,81 @@ import okhttp3.Request
 import okhttp3.Response
 import okhttp3.WebSocket
 import okhttp3.WebSocketListener
+import java.util.concurrent.TimeUnit
 
-class NotifySocket(private val prefs: AppPrefs) {
+class NotifySocket(
+    private val prefs: AppPrefs,
+    private val onSubscriptionChanged: (Boolean) -> Unit = {}
+) {
     private val main = Handler(Looper.getMainLooper())
-    private var socket: WebSocket? = null
+    @Volatile private var socket: WebSocket? = null
     private var nextId = 2
+    @Volatile private var generation = 0
+    @Volatile private var wanted = false
+    @Volatile
+    var isSubscribed = false
+        private set
+    private var backoffMs = MIN_BACKOFF_MS
+    private val reconnect = Runnable {
+        if (wanted && prefs.isRegistered) open()
+    }
 
+    @Synchronized
     fun connect() {
-        disconnect()
+        wanted = true
+        open()
+    }
+
+    @Synchronized
+    fun ensureConnected() {
+        if (!prefs.isRegistered || !wanted) return
+        if (socket == null) open()
+    }
+
+    @Synchronized
+    fun disconnect() {
+        wanted = false
+        updateSubscription(false)
+        generation++
+        main.removeCallbacks(reconnect)
+        closeSocket()
+    }
+
+    @Synchronized
+    private fun open() {
         if (!prefs.isRegistered) return
+        generation++
+        val gen = generation
+        closeSocket()
+        updateSubscription(false)
+        nextId = 2
         val wsUrl = prefs.instanceUrl
             .replace("https://", "wss://")
             .replace("http://", "ws://") + "/api/websocket"
         val request = Request.Builder().url(wsUrl).build()
-        socket = HttpClients.okHttp.newWebSocket(request, Listener())
+        socket = HttpClients.webSocket.newWebSocket(request, Listener(gen))
+        Log.i(Mc40App.TAG, "Notify websocket connecting $wsUrl")
     }
 
-    fun disconnect() {
+    private fun closeSocket() {
         socket?.close(1000, "bye")
         socket = null
     }
 
-    private inner class Listener : WebSocketListener() {
+    private fun scheduleReconnect(reason: String) {
+        if (!wanted || !prefs.isRegistered) return
+        updateSubscription(false)
+        Log.w(Mc40App.TAG, "Notify websocket $reason; retry in ${backoffMs}ms")
+        main.removeCallbacks(reconnect)
+        main.postDelayed(reconnect, backoffMs)
+        backoffMs = (backoffMs * 2).coerceAtMost(MAX_BACKOFF_MS)
+    }
+
+    private inner class Listener(private val gen: Int) : WebSocketListener() {
+        private fun current(): Boolean = gen == generation && wanted
+
         override fun onMessage(webSocket: WebSocket, text: String) {
+            if (!current()) return
             val json = try {
                 JsonParser.parseString(text).asJsonObject
             } catch (_: Exception) {
@@ -61,19 +113,55 @@ class NotifySocket(private val prefs: AppPrefs) {
                     webSocket.send(sub.toString())
                     Log.i(Mc40App.TAG, "Notify websocket authenticated")
                 }
-                "event" -> handleEvent(json)
-                "result" -> {
-                    if (json.get("success")?.asBoolean == false) {
-                        Log.w(Mc40App.TAG, "WS result error: ${text.take(200)}")
-                    }
+                "auth_invalid" -> {
+                    Log.w(Mc40App.TAG, "Notify websocket auth rejected: ${text.take(200)}")
                 }
+                "event" -> handleEvent(json)
+                "result" -> handleResult(json, text)
             }
         }
 
-        override fun onFailure(webSocket: WebSocket, t: Throwable, response: Response?) {
-            Log.w(Mc40App.TAG, "Notify websocket failed: ${t.message}")
-            main.postDelayed({ if (prefs.isRegistered) connect() }, 10_000)
+        override fun onClosing(webSocket: WebSocket, code: Int, reason: String) {
+            webSocket.close(code, reason)
         }
+
+        override fun onClosed(webSocket: WebSocket, code: Int, reason: String) {
+            if (!current()) return
+            socket = null
+            scheduleReconnect("closed $code $reason")
+        }
+
+        override fun onFailure(webSocket: WebSocket, t: Throwable, response: Response?) {
+            if (!current()) return
+            socket = null
+            scheduleReconnect("failed: ${t.message}")
+        }
+    }
+
+    private fun handleResult(json: JsonObject, text: String) {
+        val id = json.get("id")?.asInt
+        val success = json.get("success")?.asBoolean == true
+        if (id == 1) {
+            if (success) {
+                updateSubscription(true)
+                backoffMs = MIN_BACKOFF_MS
+                Log.i(Mc40App.TAG, "Notify websocket subscribed for local push")
+            } else {
+                updateSubscription(false)
+                Log.w(Mc40App.TAG, "Notify websocket subscribe failed: ${text.take(240)}")
+                scheduleReconnect("subscribe failed")
+            }
+            return
+        }
+        if (!success) {
+            Log.w(Mc40App.TAG, "WS result error: ${text.take(200)}")
+        }
+    }
+
+    private fun updateSubscription(subscribed: Boolean) {
+        if (isSubscribed == subscribed) return
+        isSubscribed = subscribed
+        onSubscriptionChanged(subscribed)
     }
 
     private fun handleEvent(json: JsonObject) {
@@ -102,5 +190,10 @@ class NotifySocket(private val prefs: AppPrefs) {
             }
             socket?.send(confirm.toString())
         }
+    }
+
+    companion object {
+        private val MIN_BACKOFF_MS = TimeUnit.SECONDS.toMillis(3)
+        private val MAX_BACKOFF_MS = TimeUnit.SECONDS.toMillis(30)
     }
 }

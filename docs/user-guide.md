@@ -1,6 +1,6 @@
 # User guide
 
-The companion is a foreground scanner for the MC40N0. After pairing it stays on the Use/Shopping screen. Hardware side triggers scan; Home Assistant can pop a product card over that screen.
+The companion is a foreground scanner for the MC40N0. Home Assistant configures its mode buttons after pairing. Hardware side triggers scan; Home Assistant can pop a product card over that screen.
 
 ## Pairing
 
@@ -9,6 +9,7 @@ You need a Home Assistant URL and a **long-lived access token** (HA Profile → 
 1. Enter the instance URL, e.g. `http://homeassistant.local:8123` (no trailing slash required; the app trims it).
 2. Paste the token, **or** tap **Scan token QR** and scan a QR from a laptop.
 3. Tap **Connect**. A `mobile_app` device named **MC40N0** should appear in HA.
+4. Import [`mc40_configuration.yaml`](../homeassistant/blueprints/mc40_configuration.yaml), create an automation, and select that device.
 
 Accepted QR payloads:
 
@@ -29,10 +30,14 @@ HTTP (cleartext) to a LAN HA instance is allowed. The token is encrypted in app 
 
 ## After connect
 
+The welcome screen shows initialization progress while the app registers sensors, opens local push, and waits for the **MC40 Configuration** blueprint. There is no hardcoded home-screen fallback: the scanner UI remains unavailable until a valid configuration arrives. The request retries every 10 seconds.
+
+The home-screen configuration is cached until the app process restarts. Home Assistant can force another initialization with notify `command: reinit`.
+
 The main screen shows:
 
 - Connection and scanner status
-- **Use** / **Shopping** (selected state is highlighted; persisted across restarts)
+- Up to four configured mode buttons (selected state is highlighted)
 - Last barcode and symbology
 - **Scan** (soft trigger; hardware side buttons also work)
 - **Change server**
@@ -41,12 +46,12 @@ The status bar is hidden (fullscreen). A thin **LED bar** at the top of the scre
 
 ## Modes
 
-| Mode | Scan behaviour | Confirm on overlay |
-|------|----------------|-------------------|
-| **Use** | `mc40_barcode_scanned` with `mode: use`. HA typically looks up the product and sends an overlay. | `mc40_stock_adjust` (amount to consume) |
-| **Shopping** | Same scan event, **and** immediate `mc40_shopping_add` with quantity `1`. | `mc40_shopping_add` |
+Each blueprint slot has a label, an ID, and either **Use** or **Shopping** behavior. The slot ID is sent as `event_data.mode`; behavior determines scan and confirmation handling.
 
-HA can switch mode with notify `command: set_mode` (`mode: use` or `mode: shopping`). The device also exposes `sensor.scanner_mode`.
+- **Use behavior:** fires `mc40_barcode_scanned`; overlay confirm fires `mc40_stock_adjust`.
+- **Shopping behavior:** also fires `mc40_shopping_add` immediately on scan; overlay confirm fires `mc40_shopping_add`.
+
+HA can switch mode with notify `command: set_mode` and any configured slot ID. The device also exposes `sensor.scanner_mode`.
 
 ## Product overlay
 
@@ -83,3 +88,5 @@ To restore the stock launcher: Settings → Home, or clear MC40 Companion’s de
 ## Feedback from Home Assistant
 
 Notify can beep, vibrate, light the LED bar, and **speak** (Pico TTS on the speaker). Overlay notifies may include `tts_text` so a lookup can announce the product. See [Home Assistant](home-assistant.md#notify-commands).
+
+After home-screen initialization, the notify WebSocket is open only while the screen is on. With the display off, Home Assistant will show the device as not connected to local push; a scan or PTT briefly reopens it so an overlay can still arrive. During initialization the socket stays connected while waiting for the blueprint. Diagnostic sensors keep posting about every 10 minutes while idle.

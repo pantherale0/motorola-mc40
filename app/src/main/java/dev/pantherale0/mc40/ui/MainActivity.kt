@@ -14,6 +14,8 @@ import android.view.View
 import android.view.WindowManager
 import android.view.inputmethod.EditorInfo
 import android.view.inputmethod.InputMethodManager
+import android.widget.Button
+import android.widget.LinearLayout
 import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
 import dev.pantherale0.mc40.Mc40App
@@ -32,7 +34,10 @@ import dev.pantherale0.mc40.overlay.ModeBus
 import dev.pantherale0.mc40.overlay.OverlayAction
 import dev.pantherale0.mc40.overlay.OverlayBus
 import dev.pantherale0.mc40.overlay.OverlayCommand
-import dev.pantherale0.mc40.overlay.ScannerMode
+import dev.pantherale0.mc40.overlay.UiConfig
+import dev.pantherale0.mc40.overlay.UiConfigBus
+import dev.pantherale0.mc40.overlay.UiConfigState
+import dev.pantherale0.mc40.overlay.UiInitStage
 import dev.pantherale0.mc40.scan.DataWedgeManager
 import dev.pantherale0.mc40.scan.ScanBus
 import dev.pantherale0.mc40.scan.ScanParser
@@ -47,6 +52,8 @@ class MainActivity : AppCompatActivity() {
 
     private val scanListener = ScanBus.Listener { result -> handleScan(result) }
     private val overlayListener = OverlayBus.Listener { command -> handleOverlay(command) }
+    private val uiConfigListener = UiConfigBus.Listener { state -> renderUiState(state) }
+    private val modeButtons = mutableMapOf<String, Button>()
     private var overlay: OverlayCommand? = null
     private var overlayQty = 1.0
     private var qtyUpdating = false
@@ -70,8 +77,6 @@ class MainActivity : AppCompatActivity() {
         }
         binding.connectButton.setOnClickListener { connect() }
         binding.scanButton.setOnClickListener { DataWedgeManager.toggleScan(this) }
-        binding.useModeButton.setOnClickListener { setMode(ScannerMode.USE) }
-        binding.shopModeButton.setOnClickListener { setMode(ScannerMode.SHOPPING) }
         binding.minusButton.setOnClickListener { bumpQty(-1) }
         binding.plusButton.setOnClickListener { bumpQty(1) }
         binding.confirmButton.setOnClickListener { confirmOverlay() }
@@ -82,6 +87,7 @@ class MainActivity : AppCompatActivity() {
         wireQtyField()
         binding.changeServerButton.setOnClickListener {
             Mc40App.instance.prefs.clearRegistration()
+            UiConfigBus.begin()
             stopService(Intent(this, CompanionService::class.java))
             showSetup(true)
             status("Enter a new URL and token", error = false)
@@ -92,7 +98,7 @@ class MainActivity : AppCompatActivity() {
             startService(Intent(this, CompanionService::class.java))
             status("Registered with Home Assistant", error = false)
         }
-        applyModeButtons()
+        renderUiState(UiConfigBus.state)
     }
 
     override fun onNewIntent(intent: Intent) {
@@ -106,6 +112,8 @@ class MainActivity : AppCompatActivity() {
         hideStatusBar()
         ScanBus.addListener(scanListener)
         OverlayBus.addListener(overlayListener)
+        UiConfigBus.addListener(uiConfigListener)
+        renderUiState(UiConfigBus.state)
         DataWedgeManager.switchToProfile(this)
         binding.scannerStatus.setText(
             if (Mc40App.instance.prefs.scannerReady) R.string.scanner_ready else R.string.scanner_not_ready
@@ -118,6 +126,7 @@ class MainActivity : AppCompatActivity() {
     override fun onPause() {
         ScanBus.removeListener(scanListener)
         OverlayBus.removeListener(overlayListener)
+        UiConfigBus.removeListener(uiConfigListener)
         super.onPause()
     }
 
@@ -262,6 +271,7 @@ class MainActivity : AppCompatActivity() {
             Toast.makeText(this, "Token captured", Toast.LENGTH_SHORT).show()
             return
         }
+        if (!UiConfigBus.isReady) return
         binding.lastBarcode.text = result.data
         binding.lastSymbology.text = result.labelType
         val mode = Mc40App.instance.prefs.scannerMode
@@ -306,6 +316,7 @@ class MainActivity : AppCompatActivity() {
             Mc40App.instance.prefs.sensorsRegistered = false
             main.post {
                 binding.connectButton.isEnabled = true
+                UiConfigBus.begin()
                 showSetup(false)
                 status("Connected to Home Assistant", error = false)
                 startService(Intent(this, CompanionService::class.java))
@@ -322,15 +333,18 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun showSetup(setup: Boolean) {
-        binding.setupPanel.visibility = if (setup) android.view.View.VISIBLE else android.view.View.GONE
-        binding.mainPanel.visibility = if (setup) android.view.View.GONE else android.view.View.VISIBLE
+        binding.setupPanel.visibility = if (setup) View.VISIBLE else View.GONE
         if (setup) {
+            binding.initPanel.visibility = View.GONE
+            binding.mainPanel.visibility = View.GONE
+            window.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
             window.addFlags(WindowManager.LayoutParams.FLAG_SECURE)
             binding.tokenInput.setText("")
             refreshTokenHint()
         } else {
             window.clearFlags(WindowManager.LayoutParams.FLAG_SECURE)
             binding.tokenInput.setText("")
+            renderUiState(UiConfigBus.state)
         }
         binding.connectionStatus.setText(
             if (setup) R.string.status_disconnected else R.string.status_connected
@@ -338,7 +352,7 @@ class MainActivity : AppCompatActivity() {
         binding.connectionStatus.setTextColor(
             if (setup) Color.parseColor("#CF6679") else Color.parseColor("#81C784")
         )
-        if (!setup) {
+        if (!setup && UiConfigBus.isReady) {
             binding.wedgeCapture.requestFocus()
         }
     }
@@ -358,31 +372,101 @@ class MainActivity : AppCompatActivity() {
         )
     }
 
-    private fun setMode(mode: ScannerMode) {
-        Mc40App.instance.prefs.scannerMode = mode.wire
+    private fun setMode(mode: String) {
+        Mc40App.instance.prefs.scannerMode = mode
         applyModeButtons()
         ModeBus.post(mode)
-        status("Mode: ${mode.wire}", error = false)
+        status("Mode: $mode", error = false)
         binding.wedgeCapture.requestFocus()
     }
 
     private fun applyModeButtons() {
-        val shopping = Mc40App.instance.prefs.scannerMode == ScannerMode.SHOPPING.wire
-        binding.useModeButton.setBackgroundResource(if (shopping) R.drawable.btn_mode_off else R.drawable.btn_mode_on)
-        binding.shopModeButton.setBackgroundResource(if (shopping) R.drawable.btn_mode_on else R.drawable.btn_mode_off)
-        binding.useModeButton.setTextColor(if (shopping) Color.parseColor("#F2F2F2") else Color.parseColor("#121212"))
-        binding.shopModeButton.setTextColor(if (shopping) Color.parseColor("#121212") else Color.parseColor("#F2F2F2"))
+        val selected = Mc40App.instance.prefs.scannerMode
+        for ((mode, button) in modeButtons) {
+            val active = mode == selected
+            button.setBackgroundResource(if (active) R.drawable.btn_mode_on else R.drawable.btn_mode_off)
+            button.setTextColor(Color.parseColor(if (active) "#121212" else "#F2F2F2"))
+            button.isSelected = active
+        }
+    }
+
+    private fun renderUiState(state: UiConfigState) {
+        if (!Mc40App.instance.prefs.isRegistered) return
+        binding.setupPanel.visibility = View.GONE
+        binding.initProgress.progress = state.stage.progress
+        if (state.isReady) {
+            binding.initPanel.visibility = View.GONE
+            binding.mainPanel.visibility = View.VISIBLE
+            window.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+            state.config?.let(::renderModeButtons)
+            binding.wedgeCapture.requestFocus()
+            return
+        }
+        if (binding.productOverlay.visibility == View.VISIBLE) {
+            hideOverlay()
+        }
+        binding.initPanel.visibility = View.VISIBLE
+        binding.mainPanel.visibility = View.GONE
+        window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+        binding.initStatus.setText(
+            when (state.stage) {
+                UiInitStage.REGISTERING -> R.string.init_registering
+                UiInitStage.NOTIFY_CONNECTED -> R.string.init_notify_connected
+                UiInitStage.WAITING_FOR_BLUEPRINT -> R.string.init_waiting
+                UiInitStage.APPLYING -> R.string.init_applying
+                UiInitStage.READY -> R.string.init_waiting
+            }
+        )
+    }
+
+    private fun renderModeButtons(config: UiConfig) {
+        binding.modeContainer.removeAllViews()
+        modeButtons.clear()
+        for (slots in config.slots.chunked(2)) {
+            val row = LinearLayout(this).apply {
+                orientation = LinearLayout.HORIZONTAL
+                layoutParams = LinearLayout.LayoutParams(
+                    LinearLayout.LayoutParams.MATCH_PARENT,
+                    LinearLayout.LayoutParams.WRAP_CONTENT
+                ).apply {
+                    bottomMargin = dp(8)
+                }
+            }
+            for ((index, slot) in slots.withIndex()) {
+                val button = Button(this).apply {
+                    text = slot.label
+                    contentDescription = slot.label
+                    textSize = 16f
+                    isAllCaps = false
+                    maxLines = 2
+                    setOnClickListener { setMode(slot.id) }
+                    layoutParams = LinearLayout.LayoutParams(0, dp(56), 1f).apply {
+                        if (index == 0) rightMargin = dp(4) else leftMargin = dp(4)
+                    }
+                }
+                modeButtons[slot.id] = button
+                row.addView(button)
+            }
+            binding.modeContainer.addView(row)
+        }
+        applyModeButtons()
+    }
+
+    private fun dp(value: Int): Int {
+        return (value * resources.displayMetrics.density).toInt()
     }
 
     private fun handleOverlay(command: OverlayCommand) {
         command.mode?.let { setMode(it) }
         showNotifyLed(command)
+        if (!UiConfigBus.isReady) return
         when (command.action) {
             OverlayAction.DISMISS -> hideOverlay()
             OverlayAction.SET_MODE -> { }
             OverlayAction.OVERLAY -> showOverlay(command)
             OverlayAction.FEEDBACK -> { }
             OverlayAction.TTS, OverlayAction.TTS_STOP -> { }
+            OverlayAction.UI_CONFIG, OverlayAction.REINIT -> { }
         }
     }
 
@@ -492,7 +576,8 @@ class MainActivity : AppCompatActivity() {
         val name = card.name
         val qty = overlayQty
         val unit = card.unit
-        val shopping = Mc40App.instance.prefs.scannerMode == ScannerMode.SHOPPING.wire
+        val shopping = UiConfigBus.state.config
+            ?.behaviorFor(Mc40App.instance.prefs.scannerMode) == UiConfig.BEHAVIOR_SHOPPING
         io.execute {
             val publisher = SensorPublisher(HaApi(Mc40App.instance.prefs), Mc40App.instance.prefs)
             if (shopping) {

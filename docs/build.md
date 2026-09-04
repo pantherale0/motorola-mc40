@@ -29,6 +29,15 @@ export JAVA_HOME="$HOME/.local/jdk-17/Contents/Home"   # or your JDK 17
 APK: `app/build/outputs/apk/debug/app-debug.apk`  
 Application id: `dev.pantherale0.mc40`
 
+## GitHub Actions
+
+- Pull requests run [Build](../.github/workflows/build.yml) (`assembleDebug`) and upload the APK as an artifact.
+- Pushes to `master` (and manual **Run workflow**) run [Release](../.github/workflows/release.yml): signed `assembleRelease`, then a GitHub Release tagged `v1.0.<run_number>`.
+
+`VERSION_CODE` / `VERSION_NAME` come from the workflow run number so each release can be installed over the previous one. Signing uses repo secrets `KEYSTORE_BASE64`, `KEYSTORE_PASSWORD`, `KEY_ALIAS`, and `KEY_PASSWORD`. Keep a local backup of `keystore/` (gitignored). Local builds stay at `1.0.0` and use the debug keystore unless those env vars are set.
+
+Download sideload APKs from [Releases](https://github.com/pantherale0/motorola-mc40/releases).
+
 ## Install
 
 ```bash

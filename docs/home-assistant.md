@@ -13,6 +13,18 @@ The notify target is typically `notify.mobile_app_mc40n0`. The suffix follows th
 
 `mobile_app` must be loaded (`default_config:` is enough).
 
+## Required home-screen configuration
+
+Import [`mc40_configuration.yaml`](../homeassistant/blueprints/mc40_configuration.yaml), create one automation from it, and select the MC40 `mobile_app` device. The app intentionally stays on its welcome/progress screen until this automation returns at least one mode slot.
+
+The device fires `mc40_boot` after its local-push WebSocket subscribes. The blueprint responds with `command: ui_config`. The configuration is cached only for the life of the app process; an app restart or `command: reinit` requests it again. The device retries the boot event every 10 seconds while waiting.
+
+Up to four slots can be configured. Each has:
+
+- **ID** — value sent as `event_data.mode` and exposed by `sensor.scanner_mode`
+- **Label** — text shown on the home-screen button
+- **Behavior** — `use` or `shopping`; controls immediate shopping events and overlay confirmation
+
 ## Sensors
 
 Entities appear on the `mobile_app` device. Unique IDs:
@@ -26,17 +38,28 @@ Entities appear on the `mobile_app` device. Unique IDs:
 | `wifi_connection` | sensor | SSID or `not connected` |
 | `wifi_ip_address` | sensor | IPv4 |
 | `wifi_signal_strength` | sensor | dBm |
-| `last_update_trigger` | sensor | e.g. `registration`, `periodic`, `barcode_scan`, `service_start` |
+| `last_update_trigger` | sensor | e.g. `registration`, `periodic`, `screen_on`, `sleep`, `barcode_scan`, `service_start` |
 | `last_reboot` | sensor | ISO-8601 of last boot |
 | `last_barcode` | sensor | Payload; attributes `symbology`, `source`, `scanned_at` |
 | `scanner_ready` | binary_sensor | DataWedge profile applied |
-| `scanner_mode` | sensor | `use` or `shopping` |
+| `scanner_mode` | sensor | Configured mode slot ID, e.g. `use` or `shopping` |
 | `proximity` | sensor | `close` or `far` (covers the top sensor) |
 | `tts_ready` | binary_sensor | Pico TTS engine initialized |
 
-Diagnostics update about every 60 seconds while the companion service runs. Proximity and mode update on change. Scans update `last_barcode` immediately.
+Diagnostics update about every 60 seconds while the screen is on, and every 10 minutes while it is off (`last_update_trigger` is `sleep`). Proximity and mode update on change. Scans update `last_barcode` immediately.
 
 ## Events the device fires
+
+### `mc40_boot`
+
+Requests home-screen configuration after local push connects.
+
+| Field | Example |
+|-------|---------|
+| `device_id` | `MC40N0` |
+| `app_version` | `1.0.0` |
+| `schema` | `1` |
+| `step` | `start`, `timeout`, or `complete` |
 
 ### `mc40_barcode_scanned`
 
@@ -62,7 +85,7 @@ Confirm on the overlay while in **Use**. Quantity is the amount to consume/remov
 | `quantity` | `250` |
 | `measure` | `weight` or `count` |
 | `unit` | `g` |
-| `mode` | `use` |
+| `mode` | Configured slot ID, e.g. `use` |
 | `device_id` | `MC40N0` |
 | `scanned_at` | ISO-8601 UTC |
 
@@ -71,7 +94,7 @@ Confirm on the overlay while in **Use**. Quantity is the amount to consume/remov
 - Confirm on the overlay while in **Shopping**, or
 - A scan while already in Shopping (quantity `1`, name often empty)
 
-Same field shape as stock adjust, with `mode: shopping`.
+Same field shape as stock adjust; `mode` is the configured slot ID, e.g. `shopping`.
 
 ### `mc40_button_pressed`
 
@@ -89,6 +112,8 @@ Hardware **PTT** (above the left scan trigger). Headset hook may arrive as `butt
 ## Notify commands
 
 HA sends `notify.mobile_app_mc40n0`. The app keys off **`data.command`** (the message string can be anything). Notifications with no recognised command show as a Toast.
+
+The companion subscribes to `mobile_app/push_notification_channel` while the screen is on. There is no Firebase fallback. After initialization, **screen off closes the socket** so the radio can sleep; HA will then show the device as not connected to local push until the display wakes (or a scan/PTT briefly reopens the channel). During required first initialization, the socket remains connected until configuration arrives. Check logcat for `Notify websocket subscribed for local push`.
 
 ```yaml
 action: notify.mobile_app_mc40n0
@@ -137,7 +162,28 @@ data:
 
 ### `set_mode`
 
-`mode: use` or `mode: shopping` (aliases: `consume`, `shop`, `list`).
+Set `mode` to any configured slot ID. The aliases `consume`, `shop`, and `list` map to `use`, `shopping`, and `shopping`.
+
+### `ui_config` / `reinit`
+
+`ui_config` schema 1 defines one to four home-screen mode slots. The configuration blueprint sends it automatically in response to `mc40_boot`.
+
+```yaml
+message: ui_config
+data:
+  command: ui_config
+  schema: 1
+  default: use
+  slots:
+    - id: use
+      label: Use
+      behavior: use
+    - id: shopping
+      label: Shopping
+      behavior: shopping
+```
+
+Send `command: reinit` to discard the in-process configuration, return to the welcome screen, and request it again.
 
 ### `dismiss`
 
@@ -197,6 +243,8 @@ Stop speech: `command: tts_stop` (aliases `stop_tts`, `silence`).
 ## Suggested automations
 
 Copy [`homeassistant/blueprints/`](../homeassistant/blueprints/) into HA `config/blueprints/automation/`.
+
+**Required configuration:** import [`mc40_configuration.yaml`](../homeassistant/blueprints/mc40_configuration.yaml) and create one automation per MC40 device.
 
 **Open Food Facts overlay:** import [`mc40_openfoodfacts_overlay.yaml`](../homeassistant/blueprints/mc40_openfoodfacts_overlay.yaml). Requires [ha-openfoodfacts](https://github.com/pantherale0/ha-openfoodfacts) (`open_food_facts.get_product`). Use-mode scans look up the barcode and send `command: overlay` with the product name, a small front image, and optional TTS. Confirm still fires `mc40_stock_adjust` (map that to Grocy or another pantry). Unknown barcodes open the overlay with the raw code, `beep: error`, and a red LED.
 

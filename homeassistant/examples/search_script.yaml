@@ -32,8 +32,9 @@ script:
             {{ matched
                | selectattr('label', 'search', query | default(''), true)
                | list }}
-          result:
-            items: "{{ filtered }}"
+          # Build the response mapping in one template so `items` stays a real list
+          # (nested `items: "{{ filtered }}"` stringifies and breaks search_results).
+          result: "{{ {'items': filtered} }}"
       - stop: Search complete
         response_variable: result
 

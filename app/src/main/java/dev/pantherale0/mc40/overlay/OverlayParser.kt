@@ -211,7 +211,7 @@ object OverlayParser {
     }
 
     private fun listItems(data: JsonObject): List<ListItem> {
-        val array = data.get("items")?.takeIf { it.isJsonArray }?.asJsonArray ?: return emptyList()
+        val array = jsonArray(data, "items") ?: return emptyList()
         return array.mapNotNull { element ->
             val obj = element.takeIf { it.isJsonObject }?.asJsonObject ?: return@mapNotNull null
             val id = string(obj, "id")?.take(MAX_ID_LENGTH) ?: return@mapNotNull null
@@ -222,6 +222,22 @@ object OverlayParser {
                 subtitle = string(obj, "subtitle", "description", "detail")?.take(MAX_LABEL_LENGTH) ?: ""
             )
         }.distinctBy { it.id }
+    }
+
+    private fun jsonArray(data: JsonObject, key: String): com.google.gson.JsonArray? {
+        val value = data.get(key) ?: return null
+        if (value.isJsonArray) return value.asJsonArray
+        if (value.isJsonPrimitive && value.asJsonPrimitive.isString) {
+            val raw = value.asString.trim()
+            if (raw.startsWith("[")) {
+                return runCatching {
+                    com.google.gson.JsonParser.parseString(raw)
+                        .takeIf { it.isJsonArray }
+                        ?.asJsonArray
+                }.getOrNull()
+            }
+        }
+        return null
     }
 
     private fun modeValue(data: JsonObject): String? {

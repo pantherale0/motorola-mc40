@@ -201,8 +201,10 @@ object UiConfigParser {
     }
 
     fun parse(data: JsonObject): UiConfig? {
-        val schema = integer(data, "schema") ?: 1
-        if (schema < 1 || schema > UiConfig.MAX_SCHEMA) return null
+        val requestedSchema = integer(data, "schema") ?: 1
+        if (requestedSchema < 1) return null
+        // Newer blueprints may advertise a higher schema; parse what we know.
+        val schema = requestedSchema.coerceAtMost(UiConfig.MAX_SCHEMA)
         val slots = nestedSlots(data, schema).ifEmpty { flattenedSlots(data, schema) }
             .distinctBy { it.id }
             .take(MAX_SLOTS)
@@ -235,7 +237,7 @@ object UiConfigParser {
     }
 
     private fun nestedSlots(data: JsonObject, schema: Int): List<UiSlot> {
-        val array = data.get("slots")?.takeIf { it.isJsonArray }?.asJsonArray ?: return emptyList()
+        val array = jsonArray(data, "slots") ?: return emptyList()
         return array.mapNotNull { element ->
             element.takeIf { it.isJsonObject }?.asJsonObject?.let { slot(it, schema) }
         }
@@ -255,12 +257,12 @@ object UiConfigParser {
 
     private fun slot(data: JsonObject, schema: Int): UiSlot? {
         val id = text(data, "id") ?: return null
-        val label = text(data, "label") ?: return null
+        val label = text(data, "label") ?: id
         return UiSlot(normalizeId(id), label.take(MAX_LABEL_LENGTH), behavior(data, "behavior", schema))
     }
 
     private fun nestedActions(data: JsonObject): List<UiAction> {
-        val array = data.get("actions")?.takeIf { it.isJsonArray }?.asJsonArray ?: return emptyList()
+        val array = jsonArray(data, "actions") ?: return emptyList()
         return array.mapNotNull { element ->
             element.takeIf { it.isJsonObject }?.asJsonObject?.let(::action)
         }
@@ -276,7 +278,7 @@ object UiConfigParser {
 
     private fun action(data: JsonObject): UiAction? {
         val id = text(data, "id") ?: return null
-        val label = text(data, "label") ?: return null
+        val label = text(data, "label") ?: id
         return UiAction(normalizeId(id), label.take(MAX_LABEL_LENGTH), actionKind(data, "kind"))
     }
 
@@ -306,11 +308,11 @@ object UiConfigParser {
     }
 
     private fun nestedPages(data: JsonObject): List<UiPage> {
-        val array = data.get("pages")?.takeIf { it.isJsonArray }?.asJsonArray ?: return emptyList()
+        val array = jsonArray(data, "pages") ?: return emptyList()
         return array.mapNotNull { element ->
             val obj = element.takeIf { it.isJsonObject }?.asJsonObject ?: return@mapNotNull null
             val id = text(obj, "id") ?: return@mapNotNull null
-            val label = text(obj, "label") ?: return@mapNotNull null
+            val label = text(obj, "label") ?: id
             val widgets = nestedWidgets(obj).take(MAX_WIDGETS)
             UiPage(normalizeId(id), label.take(MAX_LABEL_LENGTH), widgets)
         }
@@ -409,7 +411,23 @@ object UiConfigParser {
     private fun integer(data: JsonObject, key: String): Int? {
         val value = data.get(key) ?: return null
         if (!value.isJsonPrimitive) return null
-        return runCatching { value.asInt }.getOrNull()
+        val prim = value.asJsonPrimitive
+        if (prim.isNumber) return runCatching { prim.asInt }.getOrNull()
+        return prim.asString.trim().toIntOrNull()
+    }
+
+    private fun jsonArray(data: JsonObject, key: String): com.google.gson.JsonArray? {
+        val value = data.get(key) ?: return null
+        if (value.isJsonArray) return value.asJsonArray
+        if (value.isJsonPrimitive && value.asJsonPrimitive.isString) {
+            val raw = value.asString.trim()
+            if (raw.startsWith("[")) {
+                return runCatching {
+                    JsonParser.parseString(raw).takeIf { it.isJsonArray }?.asJsonArray
+                }.getOrNull()
+            }
+        }
+        return null
     }
 
     private fun normalizeId(value: String): String {

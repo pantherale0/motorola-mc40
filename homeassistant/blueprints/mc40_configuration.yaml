@@ -552,19 +552,19 @@ action:
               schema: 3
               default: !input default_mode
               default_page: !input default_page
-              slots:
-                - id: !input slot_1_id
-                  label: !input slot_1_label
-                  behavior: !input slot_1_behavior
-                - id: !input slot_2_id
-                  label: !input slot_2_label
-                  behavior: !input slot_2_behavior
-                - id: !input slot_3_id
-                  label: !input slot_3_label
-                  behavior: !input slot_3_behavior
-                - id: !input slot_4_id
-                  label: !input slot_4_label
-                  behavior: !input slot_4_behavior
+              # Flat keys survive mobile_app device notify; nested lists often do not.
+              slot_1_id: !input slot_1_id
+              slot_1_label: !input slot_1_label
+              slot_1_behavior: !input slot_1_behavior
+              slot_2_id: !input slot_2_id
+              slot_2_label: !input slot_2_label
+              slot_2_behavior: !input slot_2_behavior
+              slot_3_id: !input slot_3_id
+              slot_3_label: !input slot_3_label
+              slot_3_behavior: !input slot_3_behavior
+              slot_4_id: !input slot_4_id
+              slot_4_label: !input slot_4_label
+              slot_4_behavior: !input slot_4_behavior
               page_1_id: !input page_1_id
               page_1_label: !input page_1_label
               page_2_id: !input page_2_id
@@ -607,19 +607,18 @@ action:
               widget_6_label: !input widget_6_label
               widget_6_kind: !input widget_6_kind
               widget_6_target: !input widget_6_target
-              actions:
-                - id: !input action_1_id
-                  label: !input action_1_label
-                  kind: !input action_1_kind
-                - id: !input action_2_id
-                  label: !input action_2_label
-                  kind: !input action_2_kind
-                - id: !input action_3_id
-                  label: !input action_3_label
-                  kind: !input action_3_kind
-                - id: !input action_4_id
-                  label: !input action_4_label
-                  kind: !input action_4_kind
+              action_1_id: !input action_1_id
+              action_1_label: !input action_1_label
+              action_1_kind: !input action_1_kind
+              action_2_id: !input action_2_id
+              action_2_label: !input action_2_label
+              action_2_kind: !input action_2_kind
+              action_3_id: !input action_3_id
+              action_3_label: !input action_3_label
+              action_3_kind: !input action_3_kind
+              action_4_id: !input action_4_id
+              action_4_label: !input action_4_label
+              action_4_kind: !input action_4_kind
       - conditions:
           - condition: trigger
             id: search
@@ -640,7 +639,8 @@ action:
             data:
               command: search_results
               id: "{{ trigger.event.data.search_id }}"
-              items: "{{ search_result.items | default([]) }}"
+              # Device notify cannot carry nested lists reliably; send JSON text.
+              items: "{{ search_result.items | default([]) | to_json }}"
       - conditions:
           - condition: trigger
             id: search

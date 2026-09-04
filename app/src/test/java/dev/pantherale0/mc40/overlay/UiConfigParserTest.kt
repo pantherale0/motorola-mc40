@@ -57,7 +57,12 @@ class UiConfigParserTest {
     fun rejectsUnsupportedOrEmptyConfiguration() {
         assertNull(UiConfigParser.parse(json("""{"schema": 2, "slots": []}""")))
         assertNull(UiConfigParser.parse(json("""{"schema": 1, "slots": []}""")))
-        assertNull(UiConfigParser.parse(json("""{"schema": 4, "slots": [{"id": "a", "label": "A"}]}""")))
+        assertNull(UiConfigParser.parse(json("""{"schema": 0, "slots": [{"id": "a", "label": "A"}]}""")))
+        // Schema above MAX is clamped; still requires slots.
+        val clamped = UiConfigParser.parse(
+            json("""{"schema": 4, "slots": [{"id": "a", "label": "A", "behavior": "use"}]}""")
+        )!!
+        assertEquals(UiConfig.MAX_SCHEMA, clamped.schema)
     }
 
     @Test
@@ -531,6 +536,28 @@ class UiConfigParserTest {
     }
 
     @Test
+    fun overlayParserAcceptsJsonStringListItems() {
+        val results = OverlayParser.parse(
+            json(
+                """
+                {
+                  "message": "search_results",
+                  "data": {
+                    "command": "search_results",
+                    "id": "products",
+                    "items": "[{\"id\":\"200012570\",\"label\":\"Plain flour\",\"subtitle\":\"1 kg\"},{\"id\":\"200012571\",\"label\":\"Self-raising flour\",\"subtitle\":\"500 g\"}]"
+                  }
+                }
+                """
+            )
+        )!!
+        assertEquals(OverlayAction.SEARCH_RESULTS, results.action)
+        assertEquals(2, results.list?.items?.size)
+        assertEquals("Plain flour", results.list?.items?.get(0)?.label)
+        assertEquals("1 kg", results.list?.items?.get(0)?.subtitle)
+    }
+
+    @Test
     fun overlayParserRejectsInvalidToastFormAndList() {
         assertNull(
             OverlayParser.parse(json("""{"data": {"command": "toast"}}"""))
@@ -565,6 +592,91 @@ class UiConfigParserTest {
 
         assertEquals(4, form.form?.fields?.size)
         assertEquals(40, list.list?.items?.size)
+    }
+
+    @Test
+    fun parsesBlueprintFlatSchema3Payload() {
+        val event = json(
+            """
+            {
+              "message": "ui_config",
+              "data": {
+                "command": "ui_config",
+                "schema": 3,
+                "default": "use",
+                "default_page": "home",
+                "slots": [
+                  {"id": "use", "label": "Use", "behavior": "use"},
+                  {"id": "shopping", "label": "Shopping", "behavior": "shopping"},
+                  {"id": "", "label": "", "behavior": "use"},
+                  {"id": "", "label": "", "behavior": "use"}
+                ],
+                "page_1_id": "home",
+                "page_1_label": "Home",
+                "page_2_id": "",
+                "page_2_label": "",
+                "page_3_id": "",
+                "page_3_label": "",
+                "widget_1_page": "home",
+                "widget_1_type": "text",
+                "widget_1_id": "hint",
+                "widget_1_label": "Scan a product barcode",
+                "widget_1_kind": "event",
+                "widget_1_target": "",
+                "widget_2_page": "home",
+                "widget_2_type": "button",
+                "widget_2_id": "products",
+                "widget_2_label": "Search",
+                "widget_2_kind": "search",
+                "widget_2_target": "",
+                "actions": [
+                  {"id": "", "label": "", "kind": "event"},
+                  {"id": "", "label": "", "kind": "event"},
+                  {"id": "", "label": "", "kind": "event"},
+                  {"id": "", "label": "", "kind": "event"}
+                ]
+              }
+            }
+            """
+        )
+        val command = OverlayParser.parse(event)!!
+        assertEquals(OverlayAction.UI_CONFIG, command.action)
+        val config = command.uiConfig
+        assertEquals("expected ui_config to parse, got null", true, config != null)
+        assertEquals(3, config!!.schema)
+        assertEquals(2, config.slots.size)
+        assertEquals(1, config.pages.size)
+        assertEquals("home", config.defaultPage)
+        assertEquals(2, config.page("home")!!.widgets.size)
+    }
+
+    @Test
+    fun parsesFlattenedSlotsWhenNestedSlotsMissing() {
+        val config = UiConfigParser.parse(
+            json(
+                """
+                {
+                  "schema": 3,
+                  "default": "use",
+                  "default_page": "home",
+                  "slot_1_id": "use",
+                  "slot_1_label": "Use",
+                  "slot_1_behavior": "use",
+                  "slot_2_id": "shopping",
+                  "slot_2_label": "Shopping",
+                  "slot_2_behavior": "shopping",
+                  "page_1_id": "home",
+                  "page_1_label": "Home",
+                  "widget_1_page": "home",
+                  "widget_1_type": "text",
+                  "widget_1_id": "hint",
+                  "widget_1_label": "Scan"
+                }
+                """
+            )
+        )!!
+        assertEquals(2, config.slots.size)
+        assertEquals(1, config.pages.size)
     }
 
     private fun json(value: String) = JsonParser.parseString(value).asJsonObject

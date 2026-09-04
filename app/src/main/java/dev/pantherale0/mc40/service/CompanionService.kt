@@ -75,7 +75,7 @@ class CompanionService : Service() {
         if (command.action == OverlayAction.UI_CONFIG) {
             val config = command.uiConfig
             if (config == null) {
-                Log.w(Mc40App.TAG, "Ignored invalid ui_config")
+                Log.w(Mc40App.TAG, "Ignored invalid ui_config (need ≥1 slot; check nested slots on the wire)")
             } else {
                 applyUiConfig(config)
             }

@@ -305,7 +305,7 @@ Examples: [`homeassistant/examples/dynamic_ui.yaml`](../homeassistant/examples/d
 | `title` | optional | optional refresh |
 | `placeholder` | query hint | — |
 | `query` | optional prefill | — |
-| `items` | — | up to 40 `{ id, label, subtitle? }` |
+| `items` | — | up to 40 `{ id, label, subtitle? }` (JSON array, or a JSON array **string** — needed for device notify) |
 
 ```yaml
 action: notify.mobile_app_mc40n0
@@ -320,7 +320,7 @@ data:
         subtitle: 1 kg
 ```
 
-If a `list` notify arrives while a search with the same `id` is open, it is treated as `search_results`.
+The configuration blueprint sends `items: "{{ … | to_json }}"` because nested lists are dropped on mobile_app device notify. If a `list` notify arrives while a search with the same `id` is open, it is treated as `search_results`.
 
 ### `set_page`
 
@@ -341,7 +341,7 @@ Set `mode` to any configured slot ID. The aliases `consume`, `shop`, and `list` 
 
 ### `ui_config` / `reinit`
 
-`ui_config` schema 1–3 defines home-screen mode slots. Schema 2 may include home actions. Schema 3 may include pages and widgets. The configuration blueprint sends schema 3 automatically in response to `mc40_boot`.
+`ui_config` schema 1–3 defines home-screen mode slots. Schema 2 may include home actions. Schema 3 may include pages and widgets. The configuration blueprint sends schema 3 with **flat** `slot_*` / `page_*` / `widget_*` / `action_*` keys because nested lists are unreliable on `mobile_app` device notify. Nested `slots` / `pages` / `actions` arrays are still accepted when present.
 
 ```yaml
 message: ui_config
@@ -350,28 +350,23 @@ data:
   schema: 3
   default: use
   default_page: home
-  slots:
-    - id: use
-      label: Use
-      behavior: use
-    - id: shopping
-      label: Shopping
-      behavior: shopping
-  pages:
-    - id: home
-      label: Home
-      widgets:
-        - type: text
-          id: hint
-          label: Scan a product barcode
-        - type: button
-          id: products
-          label: Search
-          kind: search
-        - type: nav
-          id: to_lists
-          label: Lists →
-          page: lists
+  slot_1_id: use
+  slot_1_label: Use
+  slot_1_behavior: use
+  slot_2_id: shopping
+  slot_2_label: Shopping
+  slot_2_behavior: shopping
+  page_1_id: home
+  page_1_label: Home
+  widget_1_page: home
+  widget_1_type: text
+  widget_1_id: hint
+  widget_1_label: Scan a product barcode
+  widget_2_page: home
+  widget_2_type: button
+  widget_2_id: products
+  widget_2_label: Search
+  widget_2_kind: search
 ```
 
 Send `command: reinit` to discard the persisted configuration, return to the welcome screen, and request it again.

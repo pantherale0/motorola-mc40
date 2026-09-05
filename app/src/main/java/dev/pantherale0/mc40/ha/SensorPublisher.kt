@@ -7,6 +7,7 @@ import com.google.gson.JsonParser
 import dev.pantherale0.mc40.BuildConfig
 import dev.pantherale0.mc40.Mc40App
 import dev.pantherale0.mc40.device.DeviceSensors
+import dev.pantherale0.mc40.overlay.ListItem
 import dev.pantherale0.mc40.overlay.TtsPlayer
 import dev.pantherale0.mc40.overlay.UiConfig
 import dev.pantherale0.mc40.prefs.AppPrefs
@@ -251,22 +252,66 @@ class SensorPublisher(
                 addProperty("shown_at", DeviceSensors.nowIso())
             })
         }
+        Log.i(Mc40App.TAG, "mc40_list_show list_id=$listId")
         fireRaw(event, "mc40_list_show")
     }
 
-    fun publishListSelect(listId: String, itemId: String, label: String) {
+    fun publishListSelect(listId: String, items: List<ListItem>) {
+        if (items.isEmpty()) return
         val event = JsonObject().apply {
             addProperty("event_type", "mc40_list_select")
             add("event_data", JsonObject().apply {
                 addProperty("device_id", prefs.deviceName)
                 addProperty("list_id", listId)
-                addProperty("item_id", itemId)
-                addProperty("label", label)
+                addProperty("item_id", items.first().id)
+                addProperty("label", items.first().label)
+                add("item_ids", JsonArray().apply {
+                    for (item in items) add(item.id)
+                })
+                add("items", JsonArray().apply {
+                    for (item in items) {
+                        add(JsonObject().apply {
+                            addProperty("id", item.id)
+                            addProperty("label", item.label)
+                        })
+                    }
+                })
                 addProperty("mode", prefs.scannerMode)
                 addProperty("selected_at", DeviceSensors.nowIso())
             })
         }
         fireRaw(event, "mc40_list_select")
+    }
+
+    fun publishListAction(
+        listId: String,
+        buttonId: String,
+        buttonLabel: String,
+        selected: List<ListItem>
+    ) {
+        val event = JsonObject().apply {
+            addProperty("event_type", "mc40_list_action")
+            add("event_data", JsonObject().apply {
+                addProperty("device_id", prefs.deviceName)
+                addProperty("list_id", listId)
+                addProperty("button_id", buttonId)
+                addProperty("label", buttonLabel)
+                add("item_ids", JsonArray().apply {
+                    for (item in selected) add(item.id)
+                })
+                add("items", JsonArray().apply {
+                    for (item in selected) {
+                        add(JsonObject().apply {
+                            addProperty("id", item.id)
+                            addProperty("label", item.label)
+                        })
+                    }
+                })
+                addProperty("mode", prefs.scannerMode)
+                addProperty("pressed_at", DeviceSensors.nowIso())
+            })
+        }
+        fireRaw(event, "mc40_list_action")
     }
 
     fun publishListCancel(listId: String, reason: String) {

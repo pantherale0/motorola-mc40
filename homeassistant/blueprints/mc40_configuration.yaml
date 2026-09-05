@@ -596,34 +596,50 @@ blueprint:
       icon: mdi:form-select
       description: >
         Form and list/search picker results. Templates may use trigger.event.data.*.
-        On list show can set variable items; the blueprint then notifies list when
-        items is non-empty.
+        On list show can set variable items plus optional filter / multiselect /
+        confirm_label / buttons; the blueprint then notifies list when items is
+        non-empty.
       collapsed: true
       input:
         on_list_show:
           name: On list show
           description: >
-            Event: mc40_list_show (list/picker opened; not fired again when the
-            same list_id is refreshed with items).
+            Event: mc40_list_show (list/picker or search panel opened; not
+            fired again when the same list_id is refreshed with items).
 
             Available: trigger.event.data.list_id, .title, .mode, .device_id,
             .shown_at.
 
             Run any actions, then set variable items to a list of
-            {id, label, subtitle?} to pre-populate. The blueprint notifies
-            command:list with that list when items is non-empty (leave empty
-            to keep items from the original notify).
+            {id, label, subtitle?} to pre-populate. Optionally set (branch on
+            mode / list_id as you like):
+              filter — bool (default true; on-device search/filter box)
+              multiselect — bool (default false; long-press + Confirm)
+              confirm_label — string (default Confirm)
+              buttons — JSON string or list of {id, label} (default [])
+
+            The blueprint notifies command:list when items is non-empty.
           default: []
           selector:
             action: {}
         on_list_select:
           name: On list / search select
           description: >
-            Event: mc40_list_select (list picker or search row; list_id = search_id
-            for search).
+            Event: mc40_list_select (list picker confirm/tap, or search row;
+            list_id = search_id for search).
 
-            Available: trigger.event.data.list_id, .item_id, .label, .mode,
-            .device_id, .selected_at.
+            Available: trigger.event.data.list_id, .item_id, .label, .item_ids,
+            .items (list of {id,label}), .mode, .device_id, .selected_at.
+          default: []
+          selector:
+            action: {}
+        on_list_action:
+          name: On list action button
+          description: >
+            Event: mc40_list_action (custom buttons on a list notify).
+
+            Available: trigger.event.data.list_id, .button_id, .label, .item_ids,
+            .items, .mode, .device_id, .pressed_at.
           default: []
           selector:
             action: {}
@@ -709,6 +725,9 @@ trigger:
     event_type: mc40_list_select
     id: list_select
   - platform: event
+    event_type: mc40_list_action
+    id: list_action
+  - platform: event
     event_type: mc40_list_cancel
     id: list_cancel
   - platform: event
@@ -744,7 +763,7 @@ condition:
            and trigger.event.data.step | default('') in ['start', 'timeout'] }}
       {% elif trigger.id in [
            'search', 'home_action', 'page_changed', 'list_select', 'list_cancel',
-           'list_show', 'form_submit', 'form_cancel', 'button_pressed',
+           'list_action', 'list_show', 'form_submit', 'form_cancel', 'button_pressed',
            'barcode_scanned', 'mode_confirm'
          ] %}
         {{ trigger.event.data.device_id | default('') == configured_device_id }}
@@ -868,6 +887,10 @@ action:
         sequence:
           - variables:
               items: []
+              filter: true
+              multiselect: false
+              confirm_label: Confirm
+              buttons: "[]"
           - sequence: !input on_list_show
           - condition: template
             value_template: "{{ items | default([]) | length > 0 }}"
@@ -879,12 +902,21 @@ action:
               command: list
               id: "{{ trigger.event.data.list_id }}"
               title: "{{ trigger.event.data.title | default(trigger.event.data.list_id) }}"
+              filter: "{{ filter | default(true) }}"
+              multiselect: "{{ multiselect | default(false) }}"
+              confirm_label: "{{ confirm_label | default('Confirm') }}"
               # Device notify cannot carry nested lists reliably; send JSON text.
               items: "{{ items | default([]) | to_json }}"
+              buttons: >-
+                {{ buttons if buttons is string else (buttons | default([]) | to_json) }}
       - conditions:
           - condition: trigger
             id: list_select
         sequence: !input on_list_select
+      - conditions:
+          - condition: trigger
+            id: list_action
+        sequence: !input on_list_action
       - conditions:
           - condition: trigger
             id: list_cancel

@@ -8,8 +8,6 @@
     <string name="label_token">Access token</string>
     <string name="btn_scan_qr">Scan token QR</string>
     <string name="btn_connect">Connect</string>
-    <string name="btn_scan">Scan</string>
-    <string name="btn_reconnect">Change server</string>
     <string name="status_disconnected">Not connected</string>
     <string name="status_connecting">Connecting…</string>
     <string name="status_connected">Connected</string>
@@ -31,6 +29,8 @@
     <string name="hint_search">Search…</string>
     <string name="btn_search">Search</string>
     <string name="list_empty">No matching items</string>
+    <string name="list_select_none">Long-press items to select</string>
+    <string name="list_confirm_none">Select at least one item</string>
     <string name="search_waiting">Enter a query and tap Search</string>
     <string name="search_loading">Searching…</string>
     <string name="search_empty_query">Enter a search query</string>

@@ -37,6 +37,7 @@ import dev.pantherale0.mc40.overlay.FormField
 import dev.pantherale0.mc40.overlay.FormPayload
 import dev.pantherale0.mc40.overlay.FormScanGate
 import dev.pantherale0.mc40.overlay.ImageLoader
+import dev.pantherale0.mc40.overlay.ListButton
 import dev.pantherale0.mc40.overlay.ListItem
 import dev.pantherale0.mc40.overlay.ListPayload
 import dev.pantherale0.mc40.overlay.Measure
@@ -74,6 +75,7 @@ class MainActivity : AppCompatActivity() {
     private var activeForm: FormPayload? = null
     private var activeList: ListPayload? = null
     private var activeSearch: SearchPayload? = null
+    private val listSelectedIds = linkedSetOf<String>()
     private var currentPageId: String = ""
     private var overlayQty = 1.0
     private var qtyUpdating = false
@@ -99,7 +101,6 @@ class MainActivity : AppCompatActivity() {
             DataWedgeManager.startScan(this)
         }
         binding.connectButton.setOnClickListener { connect() }
-        binding.scanButton.setOnClickListener { DataWedgeManager.toggleScan(this) }
         binding.minusButton.setOnClickListener { bumpQty(-1) }
         binding.plusButton.setOnClickListener { bumpQty(1) }
         binding.confirmButton.setOnClickListener { confirmOverlay() }
@@ -110,7 +111,6 @@ class MainActivity : AppCompatActivity() {
         binding.formCancelButton.setOnClickListener { hideForm(reason = "dismiss") }
         binding.formOverlay.setOnClickListener { hideForm(reason = "dismiss") }
         binding.formCard.setOnClickListener { /* keep dim-tap from dismissing */ }
-        binding.listCancelButton.setOnClickListener { hideList(reason = "dismiss") }
         binding.listOverlay.setOnClickListener { hideList(reason = "dismiss") }
         binding.listCard.setOnClickListener { /* keep dim-tap from dismissing */ }
         binding.searchSubmitButton.setOnClickListener { submitSearch() }
@@ -121,19 +121,13 @@ class MainActivity : AppCompatActivity() {
         wireQtyField()
         wireListFilter()
         wireSearchQuery()
-        binding.changeServerButton.setOnClickListener {
-            Mc40App.instance.prefs.clearRegistration()
-            UiConfigBus.begin()
-            stopService(Intent(this, CompanionService::class.java))
-            showSetup(true)
-            status("Enter a new URL and token", error = false)
-        }
 
         showSetup(!Mc40App.instance.prefs.isRegistered)
         if (Mc40App.instance.prefs.isRegistered) {
             startService(Intent(this, CompanionService::class.java))
             status("Registered with Home Assistant", error = false)
         }
+        OverlayBus.addListener(overlayListener)
         renderUiState(UiConfigBus.state)
     }
 
@@ -147,7 +141,6 @@ class MainActivity : AppCompatActivity() {
         super.onResume()
         hideStatusBar()
         ScanBus.addListener(scanListener)
-        OverlayBus.addListener(overlayListener)
         UiConfigBus.addListener(uiConfigListener)
         renderUiState(UiConfigBus.state)
         DataWedgeManager.switchToProfile(this)
@@ -163,9 +156,13 @@ class MainActivity : AppCompatActivity() {
     override fun onPause() {
         FormScanGate.consumeScans = false
         ScanBus.removeListener(scanListener)
-        OverlayBus.removeListener(overlayListener)
         UiConfigBus.removeListener(uiConfigListener)
         super.onPause()
+    }
+
+    override fun onDestroy() {
+        OverlayBus.removeListener(overlayListener)
+        super.onDestroy()
     }
 
     override fun onWindowFocusChanged(hasFocus: Boolean) {
@@ -977,17 +974,22 @@ class MainActivity : AppCompatActivity() {
         hideForm(reason = null)
         hideSearch(reason = null)
         activeList = payload
+        listSelectedIds.clear()
         binding.listTitle.text = payload.title
         binding.listFilter.setText("")
-        binding.listFilter.visibility = if (payload.filter) View.VISIBLE else View.GONE
+        binding.listFilter.visibility = if (payload.showsFilter) View.VISIBLE else View.GONE
         binding.listOverlay.visibility = View.VISIBLE
+        renderListButtons(payload)
         renderListItems(payload.items)
         main.removeCallbacks(listTimeout)
         payload.timeoutSec?.let { sec ->
             main.postDelayed(listTimeout, sec * 1000L)
         }
-        status(payload.title, error = false)
-        if (payload.filter) {
+        status(
+            if (payload.allowsMultiselect) getString(R.string.list_select_none) else payload.title,
+            error = false
+        )
+        if (payload.showsFilter) {
             binding.listFilter.requestFocus()
         } else {
             binding.wedgeCapture.requestFocus()
@@ -1010,16 +1012,22 @@ class MainActivity : AppCompatActivity() {
                 list.title
             },
             items = payload.items,
-            filter = payload.filter,
+            filter = payload.filter ?: list.filter,
+            multiselect = payload.multiselect ?: list.multiselect,
+            buttons = if (payload.buttons.isNotEmpty()) payload.buttons else list.buttons,
+            confirmLabel = if (payload.confirmLabel.isNotBlank()) payload.confirmLabel else list.confirmLabel,
             timeoutSec = payload.timeoutSec ?: list.timeoutSec
         )
         val updated = activeList!!
+        val validIds = updated.items.map { it.id }.toSet()
+        listSelectedIds.retainAll(validIds)
         if (updated.title.isNotBlank()) {
             binding.listTitle.text = updated.title
         }
-        binding.listFilter.visibility = if (updated.filter) View.VISIBLE else View.GONE
+        binding.listFilter.visibility = if (updated.showsFilter) View.VISIBLE else View.GONE
+        renderListButtons(updated)
         val query = binding.listFilter.text?.toString()?.trim().orEmpty()
-        val visible = if (!updated.filter || query.isEmpty()) {
+        val visible = if (!updated.showsFilter || query.isEmpty()) {
             updated.items
         } else {
             updated.items.filter { item ->
@@ -1033,6 +1041,40 @@ class MainActivity : AppCompatActivity() {
             main.postDelayed(listTimeout, sec * 1000L)
         }
         status(updated.title, error = false)
+    }
+
+    private fun renderListButtons(payload: ListPayload) {
+        binding.listButtons.removeAllViews()
+        if (payload.allowsMultiselect) {
+            binding.listButtons.addView(
+                listBarButton(payload.resolvedConfirmLabel, tall = true) {
+                    confirmListSelection()
+                }
+            )
+        }
+        for (button in payload.buttons) {
+            binding.listButtons.addView(
+                listBarButton(button.label) {
+                    fireListAction(button)
+                }
+            )
+        }
+        binding.listButtons.addView(
+            listBarButton(getString(R.string.btn_dismiss)) {
+                hideList(reason = "dismiss")
+            }
+        )
+    }
+
+    private fun listBarButton(label: String, tall: Boolean = false, onClick: () -> Unit): Button {
+        return Button(this).apply {
+            text = label
+            layoutParams = LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                dp(if (tall) 52 else 48)
+            ).apply { topMargin = dp(4) }
+            setOnClickListener { onClick() }
+        }
     }
 
     private fun wireListFilter() {
@@ -1058,10 +1100,14 @@ class MainActivity : AppCompatActivity() {
     private fun renderListItems(items: List<ListItem>) {
         binding.listItems.removeAllViews()
         binding.listEmpty.visibility = if (items.isEmpty()) View.VISIBLE else View.GONE
+        val multi = activeList?.allowsMultiselect == true
         for (item in items) {
+            val selected = listSelectedIds.contains(item.id)
             val row = LinearLayout(this).apply {
                 orientation = LinearLayout.VERTICAL
-                setBackgroundResource(R.drawable.btn_mode_off)
+                setBackgroundResource(
+                    if (multi && selected) R.drawable.btn_mode_on else R.drawable.btn_mode_off
+                )
                 setPadding(dp(12), dp(10), dp(12), dp(10))
                 layoutParams = LinearLayout.LayoutParams(
                     LinearLayout.LayoutParams.MATCH_PARENT,
@@ -1069,7 +1115,19 @@ class MainActivity : AppCompatActivity() {
                 ).apply { bottomMargin = dp(6) }
                 isClickable = true
                 isFocusable = true
-                setOnClickListener { selectListItem(item) }
+                isLongClickable = multi
+                if (multi) {
+                    setOnClickListener {
+                        status(getString(R.string.list_select_none), error = false)
+                    }
+                    setOnLongClickListener {
+                        toggleListSelection(item)
+                        true
+                    }
+                } else {
+                    setOnClickListener { selectListItem(item) }
+                    setOnLongClickListener(null)
+                }
             }
             row.addView(
                 TextView(this).apply {
@@ -1097,12 +1155,73 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
+    private fun toggleListSelection(item: ListItem) {
+        if (listSelectedIds.contains(item.id)) {
+            listSelectedIds.remove(item.id)
+        } else {
+            listSelectedIds.add(item.id)
+        }
+        val list = activeList ?: return
+        val query = binding.listFilter.text?.toString()?.trim().orEmpty()
+        val visible = if (!list.showsFilter || query.isEmpty()) {
+            list.items
+        } else {
+            list.items.filter { row ->
+                row.label.contains(query, ignoreCase = true) ||
+                    row.subtitle.contains(query, ignoreCase = true)
+            }
+        }
+        renderListItems(visible)
+        status(
+            if (listSelectedIds.isEmpty()) {
+                getString(R.string.list_select_none)
+            } else {
+                "${listSelectedIds.size} selected"
+            },
+            error = false
+        )
+    }
+
+    private fun selectedListItems(): List<ListItem> {
+        val list = activeList ?: return emptyList()
+        val byId = list.items.associateBy { it.id }
+        return listSelectedIds.mapNotNull { byId[it] }
+    }
+
+    private fun confirmListSelection() {
+        val list = activeList ?: return
+        val selected = selectedListItems()
+        if (selected.isEmpty()) {
+            status(getString(R.string.list_confirm_none), error = true)
+            return
+        }
+        val listId = list.id
+        io.execute {
+            SensorPublisher(HaApi(Mc40App.instance.prefs), Mc40App.instance.prefs)
+                .publishListSelect(listId, selected)
+        }
+        hideList(reason = null)
+        status("Selected ${selected.size}", error = false)
+    }
+
+    private fun fireListAction(button: ListButton) {
+        val list = activeList ?: return
+        val listId = list.id
+        val selected = selectedListItems()
+        io.execute {
+            SensorPublisher(HaApi(Mc40App.instance.prefs), Mc40App.instance.prefs)
+                .publishListAction(listId, button.id, button.label, selected)
+        }
+        hideList(reason = null)
+        status(button.label, error = false)
+    }
+
     private fun selectListItem(item: ListItem) {
         val list = activeList ?: return
         val listId = list.id
         io.execute {
             SensorPublisher(HaApi(Mc40App.instance.prefs), Mc40App.instance.prefs)
-                .publishListSelect(listId, item.id, item.label)
+                .publishListSelect(listId, listOf(item))
         }
         hideList(reason = null)
         status("Selected ${item.label}", error = false)
@@ -1112,7 +1231,9 @@ class MainActivity : AppCompatActivity() {
         val list = activeList
         main.removeCallbacks(listTimeout)
         activeList = null
+        listSelectedIds.clear()
         binding.listItems.removeAllViews()
+        binding.listButtons.removeAllViews()
         binding.listOverlay.visibility = View.GONE
         hideKeyboard()
         if (reason != null && list != null) {
@@ -1142,6 +1263,13 @@ class MainActivity : AppCompatActivity() {
         }
         status(payload.title, error = false)
         binding.searchQuery.requestFocus()
+        // Same pre-populate hook as list: On list show can notify list/search_results for this id.
+        val searchId = payload.id
+        val title = payload.title
+        io.execute {
+            SensorPublisher(HaApi(Mc40App.instance.prefs), Mc40App.instance.prefs)
+                .publishListShow(searchId, title)
+        }
     }
 
     private fun wireSearchQuery() {
@@ -1235,7 +1363,7 @@ class MainActivity : AppCompatActivity() {
         val listId = search.id
         io.execute {
             SensorPublisher(HaApi(Mc40App.instance.prefs), Mc40App.instance.prefs)
-                .publishListSelect(listId, item.id, item.label)
+                .publishListSelect(listId, listOf(item))
         }
         hideSearch(reason = null)
         status("Selected ${item.label}", error = false)

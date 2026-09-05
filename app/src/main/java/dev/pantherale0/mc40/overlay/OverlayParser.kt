@@ -189,14 +189,28 @@ object OverlayParser {
         val title = string(data, "title", "name")?.take(MAX_TITLE_LENGTH) ?: id
         val items = listItems(data).take(MAX_LIST_ITEMS)
         if (requireItems && items.isEmpty()) return null
-        val filter = flag(data, "filter") ?: true
+        val filter = flag(data, "filter")
+        val multiselect = flag(data, "multiselect", "multi_select", "multi")
         return ListPayload(
             id = id,
             title = title,
             items = items,
             filter = filter,
+            multiselect = multiselect,
+            buttons = listButtons(data).take(MAX_LIST_BUTTONS),
+            confirmLabel = string(data, "confirm_label", "confirm")?.take(MAX_LABEL_LENGTH) ?: "",
             timeoutSec = number(data, "timeout")?.toInt()?.takeIf { it > 0 }
         )
+    }
+
+    private fun listButtons(data: JsonObject): List<ListButton> {
+        val array = jsonArray(data, "buttons") ?: return emptyList()
+        return array.mapNotNull { element ->
+            val obj = element.takeIf { it.isJsonObject }?.asJsonObject ?: return@mapNotNull null
+            val id = string(obj, "id")?.take(MAX_ID_LENGTH) ?: return@mapNotNull null
+            val label = string(obj, "label", "name", "title")?.take(MAX_LABEL_LENGTH) ?: id
+            ListButton(id = id, label = label)
+        }.distinctBy { it.id }
     }
 
     private fun parseSearch(data: JsonObject): SearchPayload? {
@@ -370,4 +384,5 @@ object OverlayParser {
     private const val MAX_FORM_FIELDS = 4
     private const val MAX_SELECT_OPTIONS = 20
     private const val MAX_LIST_ITEMS = 40
+    private const val MAX_LIST_BUTTONS = 3
 }

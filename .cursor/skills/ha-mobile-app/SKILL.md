@@ -20,7 +20,7 @@ Keep `binary_sensor.scanner_ready` in sync with DataWedge profile status.
 
 Home UI initialization is required. After local push subscribes, fire `mc40_boot` (`device_id`, `app_version`, `schema: 3`, `step`) every 10 seconds until the MC40 Configuration blueprint replies with notify `command: ui_config`. Accept schema `1`–`3` (higher schemas clamp to max). Schema 1: slots only. Schema 2: + actions (`kind: event|search`). Schema 3: + pages/widgets (`text`, `button`, `nav`); top-level actions ignored when pages are present. Prefer flat `slot_*` / `page_*` / `widget_*` keys on device notify (nested lists often arrive empty). Persist the last valid config to prefs and restore it on process start (READY immediately); then soft-fire one `mc40_boot` `start` when notify subscribes so HA can refresh. `command: reinit` or unregister clears the cache and repeats the full handshake. Gate grocery scans and overlays until ready (cache or HA).
 
-The configuration blueprint groups inputs into sections and optionally handles `mc40_search` via an **On search** action chain (must set variable `items`; blueprint sends `search_results`) and `mc40_list_show` via **On list show** (set `items` when non-empty; blueprint sends `list`), plus action sequences for home/page/button, form/list, and scan/inventory (`mc40_barcode_scanned`, `mc40_mode_confirm`).
+The configuration blueprint groups inputs into sections and optionally handles `mc40_search` via an **On search** action chain (must set variable `items`; blueprint sends `search_results`) and `mc40_list_show` via **On list show** (set `items` when non-empty; optional `filter` / `multiselect` / `confirm_label` / `buttons` variables — branch on mode/list_id; blueprint sends `list`), plus action sequences for home/page/button, form/list, and scan/inventory (`mc40_barcode_scanned`, `mc40_mode_confirm`).
 
 Behaviors (`use` / `shopping` / `custom`) label slots; scans always fire `mc40_barcode_scanned`, overlay confirm always fires `mc40_mode_confirm` with slot ID as `mode`. Home action / page button `kind: event` → `mc40_home_action`; `kind: search` opens on-device search. Page `nav` switches locally; `set_page` notify also switches; both fire `mc40_page_changed`.
 
@@ -30,8 +30,8 @@ Runtime UI (gated until ready):
 
 - `toast` — `message`/`text` (max 120), `level` (`info`/`ok`/`error`), `duration` (`short`/`long`); optional feedback fields.
 - `form` — `id` required, `title`, up to 4 `fields` (`id`, `label`, `type: text|number|toggle|select|barcode`, `value`, `placeholder`, `options` for select), `confirm_label`/`cancel_label`, `timeout`. Barcode fields consume hardware scans (no grocery publish). Submit → `mc40_form_submit` (string `values`). Cancel/timeout → `mc40_form_cancel`.
-- `list` / `picker` — `id` required, items optional (empty OK). Open → `mc40_list_show`; same-id notify refreshes items without re-firing. Select → `mc40_list_select`.
-- `search` / `search_results` — on-device query → `mc40_search`; blueprint script returns `{items:[…]}`; notify may send `items` as a JSON array string (`to_json`) for device notify.
+- `list` / `picker` — `id` required, items optional. `filter` (default true), `multiselect` (long-press toggle + Confirm), up to 3 `buttons` → `mc40_list_action`. Open → `mc40_list_show`; select → `mc40_list_select` (`item_ids` / `items`).
+- `search` / `search_results` — opening search also fires `mc40_list_show` (`list_id` = search id) so HA can pre-fill via On list show; query submit → `mc40_search`; blueprint may send `items` as JSON array string (`to_json`).
 - `set_page` — `page` / `id` must match a configured page.
 - `overlay` — optional `product_id` (alias `item_id`) stored on the card and echoed on confirm (`mc40_mode_confirm`); independent of `barcode`.
 

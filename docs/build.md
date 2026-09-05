@@ -65,4 +65,4 @@ Useful lines: DataWedge profile apply, webhook failures, notify commands, `Hardw
 
 ## Re-pairing
 
-On the device: **Change server** (clears webhook + token). Or uninstall/reinstall. HA may keep the old `mobile_app` device; you can remove it under Settings → Devices if you re-register.
+On the device: clear app data / uninstall, or re-enter setup after wiping registration. HA may keep the old `mobile_app` device; you can remove it under Settings → Devices if you re-register.

@@ -191,20 +191,6 @@
                     android:gravity="center"
                     android:textColor="@color/text_dim"
                     android:textSize="14sp" />
-
-                <Button
-                    android:id="@+id/scanButton"
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:layout_marginTop="24dp"
-                    android:text="@string/btn_scan" />
-
-                <Button
-                    android:id="@+id/changeServerButton"
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:layout_marginTop="8dp"
-                    android:text="@string/btn_reconnect" />
             </LinearLayout>
 
             <TextView
@@ -484,12 +470,12 @@
                     android:orientation="vertical" />
             </ScrollView>
 
-            <Button
-                android:id="@+id/listCancelButton"
+            <LinearLayout
+                android:id="@+id/listButtons"
                 android:layout_width="match_parent"
-                android:layout_height="48dp"
+                android:layout_height="wrap_content"
                 android:layout_marginTop="8dp"
-                android:text="@string/btn_dismiss" />
+                android:orientation="vertical" />
         </LinearLayout>
     </FrameLayout>
 

@@ -71,13 +71,27 @@ data class ListItem(
     val subtitle: String = ""
 )
 
+data class ListButton(
+    val id: String,
+    val label: String
+)
+
 data class ListPayload(
     val id: String,
     val title: String,
     val items: List<ListItem>,
-    val filter: Boolean = true,
+    /** null = default true on open; omitted on refresh keeps prior value */
+    val filter: Boolean? = null,
+    /** null = default false on open; omitted on refresh keeps prior value */
+    val multiselect: Boolean? = null,
+    val buttons: List<ListButton> = emptyList(),
+    val confirmLabel: String = "",
     val timeoutSec: Int? = null
-)
+) {
+    val showsFilter: Boolean get() = filter ?: true
+    val allowsMultiselect: Boolean get() = multiselect ?: false
+    val resolvedConfirmLabel: String get() = confirmLabel.ifBlank { "Confirm" }
+}
 
 data class SearchPayload(
     val id: String,

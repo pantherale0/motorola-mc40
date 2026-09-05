@@ -118,6 +118,11 @@ automation:
             id: pick_list
             title: Shopping lists
             filter: true
+            multiselect: true
+            confirm_label: Add
+            buttons:
+              - id: select_all_shop
+                label: Shop mode
             timeout: 45
 
   - alias: MC40 list select
@@ -131,4 +136,19 @@ automation:
       - action: persistent_notification.create
         data:
           title: "MC40 list"
-          message: "Selected {{ trigger.event.data.label }} ({{ trigger.event.data.item_id }})"
+          message: >-
+            Selected {{ trigger.event.data.item_ids }}
+            ({{ trigger.event.data.items }})
+
+  - alias: MC40 list action
+    trigger:
+      - platform: event
+        event_type: mc40_list_action
+    condition:
+      - condition: template
+        value_template: "{{ trigger.event.data.list_id == 'pick_list' }}"
+    action:
+      - action: persistent_notification.create
+        data:
+          title: "MC40 list button {{ trigger.event.data.button_id }}"
+          message: "{{ trigger.event.data.item_ids }}"

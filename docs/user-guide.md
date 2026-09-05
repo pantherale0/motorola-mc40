@@ -24,7 +24,7 @@ qrencode -t ANSIUTF8 -o - "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
 qrencode -t ANSIUTF8 -o - '{"url":"http://homeassistant.local:8123","token":"eyJ..."}'
 ```
 
-Until Connect succeeds, barcodes are treated as setup input, not grocery scans. **Change server** clears the HA webhook and returns to this screen; a saved token stays on device (leave the token field blank to reuse it).
+Until Connect succeeds, barcodes are treated as setup input, not grocery scans. To change servers later, clear app data or uninstall/reinstall (a saved token can still be reused on the setup screen if you leave the token field blank).
 
 HTTP (cleartext) to a LAN HA instance is allowed. The token is encrypted in app storage (AndroidKeyStore). Create a **dedicated HA user** for this device rather than using your owner account. See [Security](security.md).
 
@@ -39,8 +39,6 @@ The main screen shows:
 - Connection and scanner status
 - Up to four configured mode buttons (selected state is highlighted)
 - Last barcode and symbology
-- **Scan** (soft trigger; hardware side buttons also work)
-- **Change server**
 
 The status bar is hidden (fullscreen). A thin **LED bar** at the top of the screen lights when HA sends an LED command.
 
@@ -82,7 +80,7 @@ To restore the stock launcher: Settings → Home, or clear MC40 Companion’s de
 
 ## Scanning notes
 
-- Prefer the **side scan triggers**. The on-screen Scan button is a soft DataWedge trigger.
+- Prefer the **side scan triggers**.
 - DataWedge on this unit often keystroke-injects into the focused field. The app keeps a hidden capture field focused on the main screen for that reason.
 - Token QR during setup needs that same imager; grocery scans only go to HA after Connect.
 

@@ -168,28 +168,41 @@ Fired when the user confirms or dismisses a notify `form` card.
 
 ### `mc40_list_show`
 
-Fired when a notify `list` / `picker` opens (new `list_id`). A follow-up `list` notify with the same `id` refreshes items and does **not** fire again.
+Fired when a notify `list` / `picker` opens, or when the on-device **search** panel opens (home action kind `search` or notify `command: search`). A follow-up `list` / `search_results` notify with the same `id` refreshes items and does **not** fire again.
 
 | Field | Example |
 |-------|---------|
-| `list_id` | `shopping` |
+| `list_id` | `shopping` (or the search id) |
 | `title` | `Shopping list` |
 | `mode` | Current scanner mode |
 | `device_id` | `MC40N0` |
 | `shown_at` | ISO-8601 UTC |
 
-The configuration blueprint **On list show** can set variable `items` (same shape as search); when non-empty it notifies `command: list` to fill the open picker.
+The configuration blueprint **On list show** can set variable `items` (same shape as search); when non-empty it notifies `command: list` to fill the open picker (or search panel when the same id is open). Optionally set variables `filter`, `multiselect`, `confirm_label`, and `buttons` in that action chain (branch on `mode` / `list_id`) — defaults are filter on, multiselect off, confirm label `Confirm`, buttons `[]`.
 
 ### `mc40_list_select` / `mc40_list_cancel`
 
-Fired when the user picks an item or dismisses a notify `list` picker.
+Fired when the user confirms a selection or dismisses a notify `list` picker (or search row).
 
 | Field | Select | Cancel |
 |-------|--------|--------|
 | `list_id` | yes | yes |
-| `item_id` / `label` | yes | — |
+| `item_id` / `label` | first selected | — |
+| `item_ids` / `items` | all selected (`[{id,label},…]`) | — |
 | `reason` | — | `dismiss` or `timeout` |
 | `mode` / `device_id` | yes | yes |
+
+### `mc40_list_action`
+
+Custom list bottom button (`buttons` on the list notify). Includes any current multiselect selection.
+
+| Field | Example |
+|-------|---------|
+| `list_id` | `pick_items` |
+| `button_id` | `clear_cart` |
+| `label` | `Clear cart` |
+| `item_ids` / `items` | Current selection (may be empty) |
+| `mode` / `device_id` | yes |
 
 ## Notify commands
 
@@ -289,7 +302,7 @@ Modal with up to four fields. Confirm fires `mc40_form_submit` (`values` is a st
 
 ### `list` / `picker`
 
-Scrollable picker with optional on-device filter. Opening fires `mc40_list_show` (once per new `id`). Select fires `mc40_list_select`; dismiss/timeout fires `mc40_list_cancel`.
+Scrollable picker with optional on-device filter. Opening fires `mc40_list_show` (once per new `id`). Single-select: tap a row → `mc40_list_select`. Multiselect: long-press toggles highlight → Confirm → `mc40_list_select` with all selected. Custom bottom buttons → `mc40_list_action`. Dismiss/timeout → `mc40_list_cancel`.
 
 | Field | Required | Notes |
 |-------|----------|--------|
@@ -297,9 +310,28 @@ Scrollable picker with optional on-device filter. Opening fires `mc40_list_show`
 | `title` | no | Defaults to `id` |
 | `items` | no | Up to 40 `{ id, label, subtitle? }`; omit/empty to open then fill via `mc40_list_show` |
 | `filter` | no | Default `true` — local filter EditText |
+| `multiselect` | no | Default `false`. Aliases `multi_select` / `multi`. Long-press toggles; shows Confirm |
+| `confirm_label` | no | Confirm button text when `multiselect` (default `Confirm`) |
+| `buttons` | no | Up to 3 `{ id, label }` extras above Dismiss → `mc40_list_action` (JSON array string if device notify drops nested lists) |
 | `timeout` | no | Seconds until auto-cancel |
 
-A second `list` notify with the same `id` while the picker is open refreshes rows without another `mc40_list_show`.
+```yaml
+action: notify.mobile_app_mc40n0
+data:
+  message: list
+  data:
+    command: list
+    id: pick_items
+    title: Pick products
+    multiselect: true
+    confirm_label: Add selected
+    buttons:
+      - id: clear_cart
+        label: Clear cart
+    items: "{{ items | to_json }}"
+```
+
+A second `list` notify with the same `id` while the picker is open refreshes rows without another `mc40_list_show`. See events `mc40_list_select`, `mc40_list_action`, and `mc40_list_cancel` above.
 
 Examples: [`homeassistant/examples/dynamic_ui.yaml`](../homeassistant/examples/dynamic_ui.yaml).
 
